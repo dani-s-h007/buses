@@ -6,7 +6,7 @@ import {
   BarChart3, Map, Monitor, Info, ChevronRight, Star, Share2, 
   ArrowUpCircle, ArrowDownCircle, PlusSquare, Phone, CheckSquare, Square, Loader2, AlertOctagon
 } from 'lucide-react';
-// MAKE SURE BUS_STOPS_RAW IS EXPORTED FROM YOUR UTILS
+// IMPORT BUS_STOPS_RAW FOR AUTOCOMPLETE
 import { formatTime, DEPOT_DATA, BUS_STOPS_RAW } from '../utils';
 
 // --- SKELETON: BUS DETAIL ---
@@ -68,7 +68,7 @@ const to24Hour = (time12h) => {
 };
 
 // 6. ADD BUS FORM (ENHANCED)
-export const AddBusForm = ({ onCancel, onAdd, showToast }) => {
+export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) => {
     const [formData, setFormData] = useState({
         name: '', type: 'Private', from: '', to: '', time: '', endTime: '', distance: ''
     });
@@ -142,6 +142,20 @@ export const AddBusForm = ({ onCancel, onAdd, showToast }) => {
             showToast("Please fill all required fields", "info");
             return;
         }
+
+        // --- DUPLICATE CHECK ---
+        const displayTime = formatTime(formData.time);
+        const isDuplicate = existingBuses.some(b => 
+            b.from.toLowerCase() === formData.from.toLowerCase().trim() &&
+            b.to.toLowerCase() === formData.to.toLowerCase().trim() &&
+            b.time === displayTime
+        );
+
+        if (isDuplicate) {
+            showToast("This bus timing already exists!", "error");
+            return;
+        }
+
         setShowConfirmModal(true);
     };
 
@@ -585,6 +599,7 @@ ${url}`;
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Time</label>
+                            {/* FIX: ADDED value and type="time" */}
                             <input 
                                 type="time" 
                                 className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" 
@@ -612,6 +627,7 @@ ${url}`;
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                         <label className="text-[10px] font-bold text-gray-500 uppercase block mb-3">Stops & Route Order</label>
                         <div className="mb-3 space-y-2 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
+                            {/* In Edit mode, we show the raw list (displayStops) */}
                             {displayStops.map((stop, i) => {
                                 const isStart = i === 0;
                                 const isEnd = i === displayStops.length - 1;
@@ -630,9 +646,9 @@ ${url}`;
                                     <div className="flex items-center gap-1 border-l pl-2">
                                         <Clock size={10} className="text-gray-400"/>
                                         <input 
-                                            type="time" 
+                                            type="time" /* FIX: Type time for clock picker */
                                             className="w-20 p-1 border-b border-transparent focus:border-teal-500 focus:outline-none text-right text-[10px] text-gray-500 bg-transparent" 
-                                            value={to24Hour(stop.time)} 
+                                            value={to24Hour(stop.time)} /* FIX: Format value correctly */
                                             onChange={(e) => handleEditStop(i, 'time', e.target.value)}
                                         />
                                     </div>

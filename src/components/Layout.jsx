@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // NEW IMPORT
+import { useNavigate } from 'react-router-dom';
 import { 
   Bus, Menu, PlusSquare, ChevronRight, CheckCircle, AlertCircle, Info, 
-  FileText, Lock, AlertTriangle, MapPin, Search 
+  FileText, Lock, AlertTriangle, MapPin, Search, Heart, Cookie 
 } from 'lucide-react';
 import { BUS_STOPS_RAW } from '../utils';
 
@@ -181,7 +181,7 @@ export const FooterPage = ({ type, onBack }) => {
                         </div>
                         <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                             <h5 className="font-bold text-gray-700 mb-1 text-xs uppercase">Location</h5>
-                            <p className="text-xs text-gray-600">Evidebus, Malappuram, Kerala</p>
+                            <p className="text-xs text-gray-600">evidebus Tech Labs, Malappuram, Kerala</p>
                         </div>
                     </div>
                 </>
@@ -191,22 +191,28 @@ export const FooterPage = ({ type, onBack }) => {
             title: "Privacy Policy", 
             body: (
                 <div className="space-y-4 text-xs leading-relaxed text-gray-600 text-justify">
-                    <p>This privacy notice for <strong>evidebus</strong> ("we," "us," or "our") describes how and why we might collect, store, use, and/or share ("process") your information when you use our services ("Services").</p>
+                    <p>This privacy notice for <strong>evidebus.com</strong> ("we," "us," or "our") describes how and why we might collect, store, use, and/or share ("process") your information when you use our services ("Services"), such as when you:</p>
                     <ul className="list-disc pl-5 space-y-1">
-                        <li>Visit our website at <a href="https://evidebus.com" className="text-blue-600 hover:underline">https://evidebus.com</a></li>
+                        <li>Visit our website at <a href="https://evidebus.com" className="text-blue-600 hover:underline">https://evidebus.com</a>, or any website of ours that links to this privacy notice</li>
                         <li>Engage with us in other related ways, including any sales, marketing, or events</li>
                     </ul>
+                    <p>If you have questions or concerns, reading this privacy notice will help you understand your privacy rights and choices. If you do not agree with our policies and practices, please do not use our Services. For further inquiries, please contact us at <a href="mailto:dalsc.dev@gmail.com" className="text-blue-600 hover:underline">dalsc.dev@gmail.com</a>.</p>
+
                     <h4 className="font-bold text-gray-800 mt-4">1. WHAT INFORMATION DO WE COLLECT?</h4>
-                    <p><strong>Personal information you disclose to us:</strong> We collect personal information that you provide to us voluntarily.</p>
-                    <p><strong>Information automatically collected:</strong> Some information — such as your Internet Protocol (IP) address — is collected automatically.</p>
+                    <p><strong>Personal information you disclose to us:</strong> We collect personal information that you provide to us voluntarily (e.g. when you post a comment or add a bus).</p>
+                    <p><strong>Information automatically collected:</strong> Some information — such as your Internet Protocol (IP) address and/or browser and device characteristics — is collected automatically when you visit our Services.</p>
+
                     <h4 className="font-bold text-gray-800 mt-4">2. HOW DO WE PROCESS YOUR INFORMATION?</h4>
                     <p>We process your information to provide, improve, and administer our Services, communicate with you, for security and fraud prevention, and to comply with law.</p>
-                    <h4 className="font-bold text-gray-800 mt-4">3. SHARING PERSONAL INFORMATION</h4>
-                    <p>We may share your personal information in specific situations and with certain types of parties, such as data analytics services.</p>
-                    <h4 className="font-bold text-gray-800 mt-4">4. COOKIES</h4>
-                    <p>We use cookies and other tracking technologies to collect and store your information.</p>
-                    <h4 className="font-bold text-gray-800 mt-4">10. CONTACT US</h4>
-                    <p>If you have questions about this notice, email us at <a href="mailto:dalsc.dev@gmail.com" className="text-blue-600 hover:underline">dalsc.dev@gmail.com</a></p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">3. WHEN AND WITH WHOM DO WE SHARE YOUR PERSONAL INFORMATION?</h4>
+                    <p>We may share your personal information in specific situations and with certain types of parties. We partner with Microsoft Clarity and Microsoft Advertising to capture how you use and interact with our website through behavioral metrics, heatmaps, and session replay.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">4. DO WE USE COOKIES AND OTHER TRACKING TECHNOLOGIES?</h4>
+                    <p>We may use cookies and other tracking technologies to collect and store your information.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">10. HOW CAN YOU CONTACT US ABOUT THIS NOTICE?</h4>
+                    <p>If you have questions or comments about this notice, you may email us at <a href="mailto:dalsc.dev@gmail.com" className="text-blue-600 hover:underline">dalsc.dev@gmail.com</a></p>
                 </div>
             )
         },
@@ -214,18 +220,60 @@ export const FooterPage = ({ type, onBack }) => {
             title: "Terms and Conditions", 
             body: (
                 <div className="space-y-4 text-xs leading-relaxed text-gray-600 text-justify">
-                    <p><strong>Welcome to evidebus.com!</strong> These Terms and Conditions ("Terms") govern your use of our website and services.</p>
+                    <p><strong>Welcome to evidebus.com!</strong> These Terms and Conditions ("Terms") govern your use of our website and services. By accessing or using evidebus.com, you agree to comply with and be bound by these Terms.</p>
+
                     <h4 className="font-bold text-gray-800 mt-4">1. Our Service</h4>
-                    <p>evidebus.com acts as a referral platform for seat reservations and bus information. We <strong>do not</strong> directly process bookings.</p>
-                    <h4 className="font-bold text-gray-800 mt-4">2. External Websites</h4>
-                    <p>When you click on a link to reserve a seat, you will be redirected to an external third-party website.</p>
-                    <h4 className="font-bold text-gray-800 mt-4">3. No Liability</h4>
-                    <p>evidebus.com shall not be liable for any issues arising from your reservation made on an external website.</p>
-                    <h4 className="font-bold text-gray-800 mt-4">4. Accuracy</h4>
-                    <p>We strive for accuracy but do not guarantee completeness of data provided by third parties.</p>
+                    <p>evidebus.com acts as a referral platform for seat reservations and bus information. We <strong>do not</strong> directly process, manage, or confirm any seat bookings ourselves. Our service is solely to provide information and links to external websites where you can complete your reservations.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">2. External Websites and Bookings</h4>
+                    <p>When you click on a link on evidebus.com to reserve a seat, you will be redirected to an external third-party website. All bookings, payments, and cancellations are handled exclusively by that external website. We strongly advise you to review their policies.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">3. No Liability for Bookings</h4>
+                    <p>evidebus.com shall not be liable for any issues arising from your reservation made on an external website, including booking errors, payment issues, or cancellations.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">4. Accuracy of Information</h4>
+                    <p>While we strive to provide accurate and up-to-date information, evidebus.com does not guarantee the completeness, accuracy, or timeliness of the seat availability, pricing, or other details displayed on our platform.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">5. User Responsibilities</h4>
+                    <p>You agree to use our website for lawful purposes only and comply with all applicable laws. You are responsible for verifying details before travel.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">6. Changes to Terms</h4>
+                    <p>We reserve the right to modify these Terms at any time. Your continued use of evidebus.com after any such changes constitutes your acceptance of the new Terms.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">7. Contact Us</h4>
+                    <p>If you have any questions about these Terms, please contact us at <a href="mailto:dalsc.dev@gmail.com" className="text-blue-600 hover:underline">dalsc.dev@gmail.com</a>.</p>
+                    
                     <div className="mt-6 pt-4 border-t border-gray-100">
                         <p className="italic text-[10px]">Last Updated: June 18, 2025</p>
                     </div>
+                </div>
+            )
+        },
+        cookies: {
+            title: "Cookie Policy",
+            body: (
+                <div className="space-y-4 text-xs leading-relaxed text-gray-600 text-justify">
+                    <p><strong>Cookie Policy for evidebus.com</strong></p>
+                    <p>This Cookie Policy explains how evidebus.com uses cookies and similar technologies to recognize you when you visit our website. It explains what these technologies are and why we use them, as well as your rights to control our use of them.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">What are cookies?</h4>
+                    <p>Cookies are small data files that are placed on your computer or mobile device when you visit a website. Cookies are widely used by website owners in order to make their websites work, or to work more efficiently, as well as to provide reporting information.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">Why do we use cookies?</h4>
+                    <p>We use first-party and third-party cookies for several reasons. Some cookies are required for technical reasons in order for our Website to operate, and we refer to these as "essential" or "strictly necessary" cookies. Other cookies also enable us to track and target the interests of our users to enhance the experience on our Online Properties.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">Types of Cookies We Use</h4>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li><strong>Essential Cookies:</strong> These cookies are strictly necessary to provide you with services available through our Website.</li>
+                        <li><strong>Analytics Cookies:</strong> These cookies collect information that is used either in aggregate form to help us understand how our Website is being used or how effective our marketing campaigns are.</li>
+                        <li><strong>Advertising Cookies:</strong> These cookies are used to make advertising messages more relevant to you. They perform functions like preventing the same ad from continuously reappearing.</li>
+                    </ul>
+
+                    <h4 className="font-bold text-gray-800 mt-4">How can I control cookies?</h4>
+                    <p>You have the right to decide whether to accept or reject cookies. You can exercise your cookie preferences by clicking on the appropriate opt-out links provided in the cookie banner or by updating your browser settings.</p>
+
+                    <h4 className="font-bold text-gray-800 mt-4">Contact Us</h4>
+                    <p>If you have any questions about our use of cookies or other technologies, please email us at <a href="mailto:dalsc.dev@gmail.com" className="text-blue-600 hover:underline">dalsc.dev@gmail.com</a>.</p>
                 </div>
             )
         },
@@ -237,8 +285,10 @@ export const FooterPage = ({ type, onBack }) => {
                         <h5 className="font-bold text-red-700 flex items-center gap-2 mb-1 text-xs"><AlertTriangle size={14}/> Not a Government Website</h5>
                         <p className="text-red-600 text-[10px] leading-relaxed">evidebus.com is privately maintained. We are <strong>NOT</strong> affiliated with KSRTC or MVD.</p>
                    </div>
+
                    <h4 className="font-bold text-sm text-gray-800 mt-4 mb-2">Data Accuracy</h4>
                    <p className="mb-2 text-xs">Timings are based on user contributions. Schedules change due to traffic/strikes.</p>
+
                    <h4 className="font-bold text-sm text-gray-800 mt-4 mb-2">Liability</h4>
                    <p className="text-xs">We recommend verifying critical travel details with the respective bus stations. We are not liable for any damages.</p>
                 </>
@@ -289,33 +339,38 @@ export const Footer = ({ onQuickSearch }) => {
                     </div>
 
                     <div>
-                        <h4 className="font-bold text-gray-800 text-xs mb-3 uppercase tracking-wide">Legal</h4>
+                        <h4 className="font-bold text-gray-800 text-xs mb-3 uppercase tracking-wide">Legal & Policy</h4>
                         <ul className="space-y-1.5 text-[10px] text-gray-500 font-medium">
-                            <li onClick={() => navigate('/terms')} className="hover:text-teal-600 cursor-pointer flex items-center gap-1 transition-colors"><FileText size={10}/> Terms</li>
-                            <li onClick={() => navigate('/privacy')} className="hover:text-teal-600 cursor-pointer flex items-center gap-1 transition-colors"><Lock size={10}/> Privacy</li>
+                            <li onClick={() => navigate('/terms')} className="hover:text-teal-600 cursor-pointer flex items-center gap-1 transition-colors"><FileText size={10}/> Terms of Service</li>
+                            <li onClick={() => navigate('/privacy')} className="hover:text-teal-600 cursor-pointer flex items-center gap-1 transition-colors"><Lock size={10}/> Privacy Policy</li>
                             <li onClick={() => navigate('/disclaimer')} className="hover:text-teal-600 cursor-pointer flex items-center gap-1 transition-colors"><AlertCircle size={10}/> Disclaimer</li>
-                            <li onClick={() => navigate('/privacy')} className="hover:text-teal-600 cursor-pointer transition-colors">Cookie Policy</li>
+                            <li onClick={() => navigate('/cookies')} className="hover:text-teal-600 cursor-pointer flex items-center gap-1 transition-colors"><Cookie size={10}/> Cookie Policy</li>
                         </ul>
                     </div>
 
                     <div>
-                        <h4 className="font-bold text-gray-800 text-xs mb-3 uppercase tracking-wide">Popular</h4>
+                        <h4 className="font-bold text-gray-800 text-xs mb-3 uppercase tracking-wide">Popular Routes</h4>
                         <div className="flex flex-wrap gap-1.5">
                             {['Kozhikode', 'Manjeri', 'Thrissur', 'Palakkad', 'Kannur', 'Aluva'].map(city => (
                                 <span key={city} onClick={() => onQuickSearch(city)} className="text-[9px] font-bold bg-gray-50 text-gray-500 px-2 py-1 rounded border border-gray-100 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200 cursor-pointer transition-all">
-                                    {city}
+                                    Bus to {city}
                                 </span>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                <div className="border-t border-gray-100 pt-6 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-3">
-                    <p className="text-[10px] text-gray-400 font-medium">
-                        © 2026 evidebus.com. Not affiliated with KSRTC.
-                    </p>
+                <div className="border-t border-gray-100 pt-6 flex flex-col md:flex-row justify-between items-center gap-3 text-center md:text-left">
+                    <div className="flex flex-col gap-1">
+                        <p className="text-[10px] text-gray-400 font-medium">
+                            © 2026 evidebus.com. Not affiliated with KSRTC.
+                        </p>
+                        <p className="text-[10px] text-gray-400 flex items-center justify-center md:justify-start gap-1">
+                            Made with <Heart size={10} className="fill-red-500 text-red-500" /> for Kerala
+                        </p>
+                    </div>
                     <p className="text-[9px] text-gray-300 max-w-sm text-center md:text-right">
-                        Timings based on user contributions.
+                        Timings based on user contributions. Verify with official counters.
                     </p>
                 </div>
             </div>

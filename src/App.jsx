@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, MapPin, ArrowRightLeft, ChevronRight, Clock, Bus, Trophy, Star, Monitor, X, Maximize2, Sun, Moon, PlusCircle, Phone } from 'lucide-react';
+import { Search, MapPin, ArrowRightLeft, ChevronRight, Clock, Bus, Trophy, Star, Monitor, X, Maximize2, Sun, Moon, PlusCircle, Phone, ChevronLeft } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, arrayUnion, query, orderBy, increment } from "firebase/firestore";
 
@@ -30,7 +30,6 @@ try {
 }
 
 // --- HELPER: GENERATE SEO SLUG ---
-// Creates a URL like: /bus/manjeri-to-kozhikode-0830-am-private
 const generateBusSlug = (bus) => {
     const clean = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '-') : '';
     const timeClean = bus.time ? bus.time.toLowerCase().replace(' ', '-').replace(':', '') : '0000';
@@ -129,6 +128,10 @@ export default function App() {
   const [userPoints, setUserPoints] = useState(0);
   const [resultFilter, setResultFilter] = useState('all'); 
   
+  // PAGINATION STATE
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Board State
   const [boardStop, setBoardStop] = useState('');
   const [showBoardInput, setShowBoardInput] = useState(false);
@@ -166,18 +169,19 @@ export default function App() {
       const path = location.pathname;
       const params = path.split('/'); 
 
+      // Reset Pagination on View Change
+      setCurrentPage(1);
+
       // 1. Bus Detail URL: /bus/manjeri-to-kozhikode-0830-am-private
       if (path.startsWith('/bus/')) {
-          const busSlug = params[2]; // Get the human-readable slug
+          const busSlug = params[2]; 
           if (buses.length > 0) {
-              // Find the bus by regenerating the slug for each bus and matching
               const bus = buses.find(b => generateBusSlug(b) === busSlug);
               
               if (bus) {
                   setSelectedBus(bus);
                   setView('detail');
               } else {
-                  // Fallback: Check if it's an old ID link just in case
                   const busById = buses.find(b => b.id === busSlug);
                   if (busById) {
                       setSelectedBus(busById);
@@ -208,8 +212,8 @@ export default function App() {
           setView('ksrtc');
       } else if (path === '/private') {
           setView('private');
-      } else if (['/about', '/contact', '/privacy', '/terms', '/disclaimer'].includes(path)) {
-          setView(path.substring(1));
+      } else if (['/about', '/contact', '/privacy', '/terms', '/disclaimer', '/cookies'].includes(path)) {
+          setView(path.substring(1)); // Remove leading slash, catches /cookies
       } else {
           setView('home');
       }
@@ -220,6 +224,7 @@ export default function App() {
       if (view === 'depot') title = "Kerala KSRTC Depot Contact Numbers - evidebus.com";
       if (view === 'bus-stands') title = "Kerala Bus Stand List - evidebus.com";
       if (view === 'board') title = `${boardStop} Live Bus Stand Status - evidebus.com`;
+      if (view === 'cookies') title = "Cookie Policy - evidebus.com";
       document.title = title;
       
       const scriptId = "json-ld-schema";
@@ -393,7 +398,6 @@ export default function App() {
       navigate(`/search/-/${encodeURIComponent(toParam)}/all`);
   };
 
-  // UPDATED: Navigates using the readable slug
   const handleBusClick = (bus) => {
       const slug = generateBusSlug(bus);
       navigate(`/bus/${slug}`);
@@ -408,7 +412,7 @@ export default function App() {
       }
   };
 
-  // Filter Logic - OPTIMIZED
+  // Filter Logic
   const filteredBuses = useMemo(() => {
     return buses.filter(bus => {
       const sFrom = searchFrom.toLowerCase().trim();
@@ -442,6 +446,23 @@ export default function App() {
       return hasFrom && hasTo && isDirectionCorrect && matchesType;
     });
   }, [buses, searchFrom, searchTo, view, resultFilter, filterType]);
+
+  // --- PAGINATION LOGIC ---
+  const paginatedBuses = useMemo(() => {
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      return filteredBuses.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredBuses, currentPage]);
+
+  const totalPages = Math.ceil(filteredBuses.length / itemsPerPage);
+
+  const handlePageChange = (newPage) => {
+      if (newPage >= 1 && newPage <= totalPages) {
+          setCurrentPage(newPage);
+          if (resultsRef.current) {
+              resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+      }
+  };
 
   // --- DIGITAL BOARD LOGIC ---
   const getBoardBuses = useMemo(() => {
@@ -490,7 +511,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-gray-700 pb-20">
-        {/* --- FULLSCREEN DIGITAL BOARD VIEW --- */}
+        {/* --- BOARD VIEW --- */}
         {view === 'board' && (
              <div className={`fixed inset-0 z-50 p-6 md:p-10 flex flex-col font-mono overflow-hidden transition-colors duration-500 ${boardDarkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
                 {/* Board Header */}
@@ -576,10 +597,10 @@ export default function App() {
 
         <ToastContainer toasts={toasts} />
         {/* Hide Nav on Board View */}
-        {view !== 'board' && <Navbar setView={(v) => navigate(`/${v === 'home' ? '' : v}`)} toggleMenu={() => setIsMenuOpen(!isMenuOpen)} />}
-        <MobileMenu isOpen={isMenuOpen} setView={(v) => navigate(`/${v === 'home' ? '' : v}`)} closeMenu={() => setIsMenuOpen(false)} />
+        {view !== 'board' && <Navbar toggleMenu={() => setIsMenuOpen(!isMenuOpen)} />}
+        <MobileMenu isOpen={isMenuOpen} closeMenu={() => setIsMenuOpen(false)} />
 
-        {/* --- MAIN CONTENT (Hidden if Board View) --- */}
+        {/* --- MAIN CONTENT --- */}
         <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 ${view === 'board' ? 'hidden' : ''}`}>
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
@@ -677,7 +698,7 @@ export default function App() {
                                 </div>
                             </div>
                             
-                            {/* RESULTS LIST */}
+                            {/* RESULTS LIST WITH PAGINATION & UPDATED CARD */}
                             {(view === 'ksrtc' || view === 'private') && (
                                 <div className="animate-fade-in" ref={resultsRef}>
                                     <div className="flex items-center justify-between mb-3 px-1">
@@ -696,350 +717,388 @@ export default function App() {
                                             {[1,2,3,4,5].map(i => <SkeletonCard key={i}/>)}
                                         </div>
                                     ) : (
-                                        <div className="space-y-3">
-                                            {filteredBuses.length > 0 ? filteredBuses.map((bus, idx) => {
-                                                let displayTime = bus.time;
-                                                let isIntermediate = false;
-                                                if (searchFrom && bus.detailedStops) {
-                                                    const stop = bus.detailedStops.find(s => s.name.toLowerCase() === searchFrom.toLowerCase());
-                                                    if (stop && stop.time !== 'TBD') {
-                                                        displayTime = stop.time;
-                                                        isIntermediate = true;
+                                        <>
+                                            <div className="space-y-3">
+                                                {paginatedBuses.length > 0 ? paginatedBuses.map((bus, idx) => {
+                                                    let displayTime = bus.time;
+                                                    let isIntermediate = false;
+                                                    if (searchFrom && bus.detailedStops) {
+                                                        const stop = bus.detailedStops.find(s => s.name.toLowerCase() === searchFrom.toLowerCase());
+                                                        if (stop && stop.time !== 'TBD') {
+                                                            displayTime = stop.time;
+                                                            isIntermediate = true;
+                                                        }
                                                     }
-                                                }
-                                                const estimatedFare = calculateFare(bus.distance, bus.type);
-                                                const isKSRTC = bus.type === 'KSRTC' || bus.type === 'Swift';
+                                                    const estimatedFare = calculateFare(bus.distance, bus.type);
+                                                    const isKSRTC = bus.type === 'KSRTC' || bus.type === 'Swift';
 
-                                                return (
-                                                <div 
-                                                    key={bus.id} 
-                                                    onClick={() => handleBusClick(bus)} 
-                                                    className="relative bg-white rounded-2xl border border-teal-100 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden group"
-                                                >
-                                                    
-                                                    {/* WATERMARK BACKGROUND */}
-                                                    <div className="absolute top-1/2 -translate-y-1/2 right-[-20px] font-black text-8xl text-gray-100 italic pointer-events-none select-none z-0 tracking-tighter opacity-80">
-                                                        {isKSRTC ? 'KSRTC' : 'PRIVATE'}
-                                                    </div>
-
-                                                    <div className="flex items-center gap-4 relative z-10">
-                                                        {/* TIME BOX */}
-                                                        <div className="bg-gray-50 rounded-xl p-3 min-w-[80px] text-center border border-gray-100">
-                                                            {/* INCREASED FONT SIZE */}
-                                                            <span className="block text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
-                                                            <span className="block text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
+                                                    return (
+                                                    <div 
+                                                        key={bus.id} 
+                                                        onClick={() => handleBusClick(bus)} 
+                                                        className="relative bg-white rounded-xl sm:rounded-2xl border border-teal-100 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-teal-200 transition-all cursor-pointer overflow-hidden group"
+                                                    >
+                                                        {/* Watermark */}
+                                                        <div className="absolute top-1/2 -translate-y-1/2 right-[-10px] sm:right-[-20px] font-black text-6xl sm:text-8xl text-gray-50 italic pointer-events-none select-none z-0 tracking-tighter opacity-50 sm:opacity-80">
+                                                            {isKSRTC ? 'KSRTC' : 'PRIVATE'}
                                                         </div>
-
-                                                        {/* DETAILS */}
-                                                        <div className="flex-1 min-w-0">
-                                                            {/* Header: Name + Rating */}
-                                                            <div className="flex justify-between items-start">
-                                                                <div>
-                                                                    {/* INCREASED FONT SIZE */}
-                                                                    <h4 className="font-bold text-xl text-teal-900 leading-tight">{bus.name}</h4>
-                                                                    {/* INCREASED FONT SIZE */}
-                                                                    <p className="text-sm font-bold text-gray-600 mt-0.5">{bus.route}</p>
-                                                                </div>
-                                                                
-                                                                {/* Rating Badge */}
+                                                        
+                                                        {/* TOP SECTION: Name & Route */}
+                                                        <div className="relative z-10 flex justify-between items-start mb-3">
+                                                            <div className="min-w-0 pr-2">
+                                                                <h4 className="font-bold text-lg sm:text-xl text-teal-900 leading-tight truncate">{bus.name}</h4>
+                                                                <p className="text-xs sm:text-sm font-bold text-gray-500 mt-0.5 truncate">{bus.route}</p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0">
                                                                 {bus.votes > 0 && (
                                                                     <div className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-green-100 shadow-sm">
                                                                         <Star size={10} className="fill-green-700" /> {bus.votes}
                                                                     </div>
                                                                 )}
-                                                            </div>
-
-                                                            {/* Tags Row */}
-                                                            <div className="flex flex-wrap items-center gap-2 mt-3">
-                                                                {/* Type Tag */}
-                                                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                                                                    isKSRTC ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                                }`}>
-                                                                    {bus.type}
-                                                                </span>
-
-                                                                {isIntermediate && (
-                                                                    <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                                        Via {searchFrom}
-                                                                    </span>
-                                                                )}
-
-                                                                {/* Crowd Tag */}
-                                                                <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                                    Crowd: {bus.crowdLevel || "Low"}
-                                                                </span>
-
-                                                                {/* Fare Tag */}
-                                                                <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                                    Est. Fare: {estimatedFare ? `₹${estimatedFare}` : 'Check'}
-                                                                </span>
+                                                                <ChevronRight size={20} className="text-gray-300 sm:w-6 sm:h-6" />
                                                             </div>
                                                         </div>
 
-                                                        {/* ARROW */}
-                                                        <div className="text-gray-300 pl-2">
-                                                            <ChevronRight size={24} />
+                                                        {/* SEPARATOR */}
+                                                        <div className="relative z-10 border-t border-dashed border-gray-200 my-3"></div>
+
+                                                        {/* BOTTOM SECTION: Time & Tags */}
+                                                        <div className="relative z-10 flex items-center gap-3 sm:gap-5">
+                                                            {/* Fixed Time Box */}
+                                                            <div className="bg-gray-50 rounded-xl p-2 sm:p-3 w-20 sm:w-24 shrink-0 text-center border border-gray-100 flex flex-col justify-center">
+                                                                <span className="block text-2xl sm:text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
+                                                                <span className="block text-[10px] sm:text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
+                                                            </div>
+
+                                                            {/* Tags Container */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                                                                        isKSRTC ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
+                                                                    }`}>
+                                                                        {bus.type}
+                                                                    </span>
+
+                                                                    {isIntermediate && (
+                                                                        <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                                            Via {searchFrom}
+                                                                        </span>
+                                                                    )}
+
+                                                                    <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                                        Crowd: {bus.crowdLevel || "Low"}
+                                                                    </span>
+
+                                                                    <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                                        Est. Fare: {estimatedFare ? `₹${estimatedFare}` : 'Check'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                                );}) : (
-                                                <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
-                                                    No buses found matching your search.
-                                                    {buses.length === 0 && (
-                                                        <div className="mt-3">
-                                                            <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
-                                                                + Load Sample Data
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* TOOLKIT & FARE GRID */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                                    <h4 className="font-bold text-gray-800 mb-2 text-xs uppercase tracking-wide">Quick Links</h4>
-                                    <div className="space-y-1">
-                                        <button onClick={() => setShowBoardInput(!showBoardInput)} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                            <Monitor size={14} /> Digital Bus Stand Display
-                                        </button>
-                                        
-                                        {/* Board Input Dropdown */}
-                                        {showBoardInput && (
-                                            <div className="p-3 bg-gray-50 rounded-lg animate-fade-in border border-gray-200 mb-2 relative">
-                                                <input 
-                                                    className="w-full p-2 border border-gray-200 rounded text-xs mb-2 outline-none focus:border-teal-500" 
-                                                    placeholder="Enter Stop Name (e.g. Pandikkad)"
-                                                    value={boardStop}
-                                                    onChange={(e) => {
-                                                        setBoardStop(e.target.value);
-                                                        updateSuggestions(e.target.value, 'board'); 
-                                                    }}
-                                                />
-                                                {/* Suggestions Specific to Board */}
-                                                {suggestionsBoard.length > 0 && (
-                                                    <div className="bg-white border border-gray-200 rounded text-xs mb-2 max-h-32 overflow-y-auto absolute z-20 w-full left-0 top-12 shadow-lg">
-                                                        {suggestionsBoard.map((s, i) => (
-                                                            <div key={i} onClick={() => { setBoardStop(s); setSuggestionsBoard([]); }} className="p-2 hover:bg-teal-50 cursor-pointer border-b border-gray-50">{s}</div>
-                                                        ))}
+                                                    );}) : (
+                                                    <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                                                        No buses found matching your search.
+                                                        {buses.length === 0 && (
+                                                            <div className="mt-3">
+                                                                <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
+                                                                    + Load Sample Data
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
-                                                <button onClick={openBoard} className="w-full bg-teal-600 text-white text-xs font-bold py-2 rounded flex items-center justify-center gap-1 hover:bg-teal-700">
-                                                    <Maximize2 size={12}/> Open Board View
+                                    </div>
+
+                                    {/* PAGINATION CONTROLS */}
+                                    {filteredBuses.length > itemsPerPage && (
+                                        <div className="flex justify-center items-center gap-4 mt-6">
+                                            <button 
+                                                onClick={() => handlePageChange(currentPage - 1)} 
+                                                disabled={currentPage === 1}
+                                                className={`p-2 rounded-lg border transition-all ${currentPage === 1 ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
+                                            >
+                                                <ChevronLeft size={20} />
+                                            </button>
+                                            <span className="text-xs font-bold text-gray-600">
+                                                Page {currentPage} of {totalPages}
+                                            </span>
+                                            <button 
+                                                onClick={() => handlePageChange(currentPage + 1)} 
+                                                disabled={currentPage === totalPages}
+                                                className={`p-2 rounded-lg border transition-all ${currentPage === totalPages ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
+                                            >
+                                                <ChevronRight size={20} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* TOOLKIT & FARE GRID */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                            <h4 className="font-bold text-gray-800 mb-2 text-xs uppercase tracking-wide">Quick Links</h4>
+                            <div className="space-y-1">
+                                <button onClick={() => setShowBoardInput(!showBoardInput)} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                    <Monitor size={14} /> Digital Bus Stand Display
+                                </button>
+                                
+                                {/* Board Input Dropdown */}
+                                {showBoardInput && (
+                                    <div className="p-3 bg-gray-50 rounded-lg animate-fade-in border border-gray-200 mb-2 relative">
+                                        <input 
+                                            className="w-full p-2 border border-gray-200 rounded text-xs mb-2 outline-none focus:border-teal-500" 
+                                            placeholder="Enter Stop Name (e.g. Pandikkad)"
+                                            value={boardStop}
+                                            onChange={(e) => {
+                                                setBoardStop(e.target.value);
+                                                updateSuggestions(e.target.value, 'board'); 
+                                            }}
+                                        />
+                                        {/* Suggestions Specific to Board */}
+                                        {suggestionsBoard.length > 0 && (
+                                            <div className="bg-white border border-gray-200 rounded text-xs mb-2 max-h-32 overflow-y-auto absolute z-20 w-full left-0 top-12 shadow-lg">
+                                                {suggestionsBoard.map((s, i) => (
+                                                    <div key={i} onClick={() => { setBoardStop(s); setSuggestionsBoard([]); }} className="p-2 hover:bg-teal-50 cursor-pointer border-b border-gray-50">{s}</div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <button onClick={openBoard} className="w-full bg-teal-600 text-white text-xs font-bold py-2 rounded flex items-center justify-center gap-1 hover:bg-teal-700">
+                                            <Maximize2 size={12}/> Open Board View
+                                        </button>
+                                    </div>
+                                )}
+
+                                <button onClick={() => navigate('/add-bus')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                    <PlusCircle size={14} /> Add Missing Bus
+                                </button>
+
+                                <button onClick={() => navigate('/depot')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                    <Phone size={14} /> Depot Enquiry Numbers
+                                </button>
+
+                                <button onClick={() => navigate('/stands')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                    <MapPin size={14} /> Bus Stand List
+                                </button>
+
+                                {[
+                                    { t: "Official KSRTC Booking", l: "https://online.keralartc.com" },
+                                    { t: "Student Concession", l: "https://concessionksrtc.com/school-register" },
+                                    { t: "Sabarimala Bus Pass", l: "https://sabarimala.onlineksrtcswift.com/" },
+                                    { t: "Check Fare Rates (MVD)", l: "https://mvd.kerala.gov.in" },
+                                    { t: "Live Traffic Status", l: "https://google.com/maps" }
+                                ].map((item, i) => (
+                                    <a key={i} href={item.l} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-teal-700 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0">
+                                        <ChevronRight size={12} className="text-gray-300" /> {item.t}
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                        <FareCalculator />
+                    </div>
+                    <SeoContent onQuickSearch={handleQuickSearch} />
+                </>
+            )}
+
+            {view === 'add-bus' && (
+                <AddBusForm onCancel={() => navigate('/')} onAdd={addNewBus} showToast={showToast} />
+            )}
+
+            {view === 'depot' && (
+                <DepotEnquiry />
+            )}
+
+            {view === 'bus-stands' && (
+                <BusStandList onBack={() => navigate('/')} />
+            )}
+
+            {/* FOOTER PAGES */}
+            {['about', 'contact', 'privacy', 'terms', 'disclaimer', 'cookies'].includes(view) && (
+                <FooterPage type={view} onBack={() => navigate('/')} />
+            )}
+
+            {/* RESULTS VIEW WITH PAGINATION (ALREADY UPDATED ABOVE) */}
+            {view === 'results' && (
+                <div className="animate-fade-in" ref={resultsRef}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
+                                <Search size={16} className="text-teal-600"/> 
+                                {searchFrom ? `Results: ${searchFrom}` : "All"} {searchTo && `to ${searchTo}`}
+                            </h3>
+                            <button onClick={() => navigate('/')} className="text-[10px] text-gray-400 hover:text-teal-600 underline mt-1">
+                                Back to Search
+                            </button>
+                        </div>
+                        
+                        <div className="flex bg-gray-100 p-1 rounded-md">
+                            <button onClick={() => setResultFilter('all')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'all' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>All</button>
+                            <button onClick={() => setResultFilter('upcoming')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'upcoming' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>Upcoming</button>
+                        </div>
+                    </div>
+
+                    {loading ? (
+                        <div className="space-y-3">
+                            {[1,2,3,4,5].map(i => <SkeletonCard key={i}/>)}
+                        </div>
+                    ) : (
+                        <>
+                            <div className="space-y-3">
+                                {paginatedBuses.length > 0 ? paginatedBuses.map((bus, idx) => {
+                                    let displayTime = bus.time;
+                                    let isIntermediate = false;
+                                    if (searchFrom && bus.detailedStops) {
+                                        const stop = bus.detailedStops.find(s => s.name.toLowerCase() === searchFrom.toLowerCase());
+                                        if (stop && stop.time !== 'TBD') {
+                                            displayTime = stop.time;
+                                            isIntermediate = true;
+                                        }
+                                    }
+                                    const estimatedFare = calculateFare(bus.distance, bus.type);
+                                    const isKSRTC = bus.type === 'KSRTC' || bus.type === 'Swift';
+
+                                    return (
+                                    <div 
+                                        key={bus.id} 
+                                        onClick={() => handleBusClick(bus)} 
+                                        className="relative bg-white rounded-xl sm:rounded-2xl border border-teal-100 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-teal-200 transition-all cursor-pointer overflow-hidden group"
+                                    >
+                                        {/* Watermark */}
+                                        <div className="absolute top-1/2 -translate-y-1/2 right-[-10px] sm:right-[-20px] font-black text-6xl sm:text-8xl text-gray-50 italic pointer-events-none select-none z-0 tracking-tighter opacity-50 sm:opacity-80">
+                                            {isKSRTC ? 'KSRTC' : 'PRIVATE'}
+                                        </div>
+                                        
+                                        {/* TOP SECTION: Name & Route */}
+                                        <div className="relative z-10 flex justify-between items-start mb-3">
+                                            <div className="min-w-0 pr-2">
+                                                <h4 className="font-bold text-lg sm:text-xl text-teal-900 leading-tight truncate">{bus.name}</h4>
+                                                <p className="text-xs sm:text-sm font-bold text-gray-500 mt-0.5 truncate">{bus.route}</p>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {bus.votes > 0 && (
+                                                    <div className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-green-100 shadow-sm">
+                                                        <Star size={10} className="fill-green-700" /> {bus.votes}
+                                                    </div>
+                                                )}
+                                                <ChevronRight size={20} className="text-gray-300 sm:w-6 sm:h-6" />
+                                            </div>
+                                        </div>
+
+                                        {/* SEPARATOR */}
+                                        <div className="relative z-10 border-t border-dashed border-gray-200 my-3"></div>
+
+                                        {/* BOTTOM SECTION: Time & Tags */}
+                                        <div className="relative z-10 flex items-center gap-3 sm:gap-5">
+                                            {/* Fixed Time Box */}
+                                            <div className="bg-gray-50 rounded-xl p-2 sm:p-3 w-20 sm:w-24 shrink-0 text-center border border-gray-100 flex flex-col justify-center">
+                                                <span className="block text-2xl sm:text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
+                                                <span className="block text-[10px] sm:text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
+                                            </div>
+
+                                            {/* Tags Container */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                                                        isKSRTC ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
+                                                    }`}>
+                                                        {bus.type}
+                                                    </span>
+
+                                                    {isIntermediate && (
+                                                        <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                            Via {searchFrom}
+                                                        </span>
+                                                    )}
+
+                                                    <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                        Crowd: {bus.crowdLevel || "Low"}
+                                                    </span>
+
+                                                    <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                        Est. Fare: {estimatedFare ? `₹${estimatedFare}` : 'Check'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    );}) : (
+                                    <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                                        No buses found matching your search.
+                                        {buses.length === 0 && (
+                                            <div className="mt-3">
+                                                <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
+                                                    + Load Sample Data
                                                 </button>
                                             </div>
                                         )}
-
-                                        <button onClick={() => navigate('/add-bus')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                            <PlusCircle size={14} /> Add Missing Bus
-                                        </button>
-
-                                        <button onClick={() => navigate('/depot')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                            <Phone size={14} /> Depot Enquiry Numbers
-                                        </button>
-
-                                        <button onClick={() => navigate('/stands')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                            <MapPin size={14} /> Bus Stand List
-                                        </button>
-
-                                        {[
-                                            { t: "Official KSRTC Booking", l: "https://online.keralartc.com" },
-                                            { t: "Student Concession", l: "https://concessionksrtc.com/school-register" },
-                                            { t: "Sabarimala Bus Pass", l: "https://sabarimala.onlineksrtcswift.com/" },
-                                            { t: "Check Fare Rates (MVD)", l: "https://mvd.kerala.gov.in" },
-                                            { t: "Live Traffic Status", l: "https://google.com/maps" }
-                                        ].map((item, i) => (
-                                            <a key={i} href={item.l} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-teal-700 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0">
-                                                <ChevronRight size={12} className="text-gray-300" /> {item.t}
-                                            </a>
-                                        ))}
                                     </div>
-                                </div>
-                                <FareCalculator />
+                                )}
                             </div>
-                            <SeoContent onQuickSearch={handleQuickSearch} />
-                        </>
-                    )}
 
-                    {view === 'add-bus' && (
-                        <AddBusForm onCancel={() => navigate('/')} onAdd={addNewBus} showToast={showToast} />
-                    )}
-
-                    {view === 'depot' && (
-                        <DepotEnquiry />
-                    )}
-
-                    {view === 'bus-stands' && (
-                        <BusStandList onBack={() => navigate('/')} />
-                    )}
-
-                    {/* FOOTER PAGES */}
-                    {['about', 'contact', 'privacy', 'terms', 'disclaimer'].includes(view) && (
-                        <FooterPage type={view} onBack={() => navigate('/')} />
-                    )}
-
-                    {/* RESULTS VIEW */}
-                    {view === 'results' && (
-                        <div className="animate-fade-in" ref={resultsRef}>
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
-                                        <Search size={16} className="text-teal-600"/> 
-                                        {searchFrom ? `Results: ${searchFrom}` : "All"} {searchTo && `to ${searchTo}`}
-                                    </h3>
-                                    <button onClick={() => navigate('/')} className="text-[10px] text-gray-400 hover:text-teal-600 underline mt-1">
-                                        Back to Search
+                            {/* PAGINATION CONTROLS */}
+                            {filteredBuses.length > itemsPerPage && (
+                                <div className="flex justify-center items-center gap-4 mt-6">
+                                    <button 
+                                        onClick={() => handlePageChange(currentPage - 1)} 
+                                        disabled={currentPage === 1}
+                                        className={`p-2 rounded-lg border transition-all ${currentPage === 1 ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
+                                    >
+                                        <ChevronLeft size={20} />
+                                    </button>
+                                    <span className="text-xs font-bold text-gray-600">
+                                        Page {currentPage} of {totalPages}
+                                    </span>
+                                    <button 
+                                        onClick={() => handlePageChange(currentPage + 1)} 
+                                        disabled={currentPage === totalPages}
+                                        className={`p-2 rounded-lg border transition-all ${currentPage === totalPages ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
+                                    >
+                                        <ChevronRight size={20} />
                                     </button>
                                 </div>
-                                
-                                <div className="flex bg-gray-100 p-1 rounded-md">
-                                    <button onClick={() => setResultFilter('all')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'all' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>All</button>
-                                    <button onClick={() => setResultFilter('upcoming')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'upcoming' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>Upcoming</button>
-                                </div>
-                            </div>
-
-                            {loading ? (
-                                <div className="space-y-3">
-                                    {[1,2,3,4,5].map(i => <SkeletonCard key={i}/>)}
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {filteredBuses.length > 0 ? filteredBuses.map((bus, idx) => {
-                                        let displayTime = bus.time;
-                                        let isIntermediate = false;
-                                        if (searchFrom && bus.detailedStops) {
-                                            const stop = bus.detailedStops.find(s => s.name.toLowerCase() === searchFrom.toLowerCase());
-                                            if (stop && stop.time !== 'TBD') {
-                                                displayTime = stop.time;
-                                                isIntermediate = true;
-                                            }
-                                        }
-                                        const estimatedFare = calculateFare(bus.distance, bus.type);
-                                        const isKSRTC = bus.type === 'KSRTC' || bus.type === 'Swift';
-
-                                        return (
-                                        <div key={bus.id} onClick={() => handleBusClick(bus)} className="relative bg-white rounded-2xl border border-teal-100 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden group">
-                                            
-                                            {/* WATERMARK BACKGROUND */}
-                                            <div className="absolute top-1/2 -translate-y-1/2 right-[-20px] font-black text-8xl text-gray-100 italic pointer-events-none select-none z-0 tracking-tighter opacity-80">
-                                                {isKSRTC ? 'KSRTC' : 'PRIVATE'}
-                                            </div>
-
-                                            <div className="flex items-center gap-4 relative z-10">
-                                                {/* TIME BOX */}
-                                                <div className="bg-gray-50 rounded-xl p-3 min-w-[80px] text-center border border-gray-100">
-                                                    {/* INCREASED FONT SIZE */}
-                                                    <span className="block text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
-                                                    <span className="block text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
-                                                </div>
-
-                                                {/* DETAILS */}
-                                                <div className="flex-1 min-w-0">
-                                                    {/* Header: Name + Rating */}
-                                                    <div className="flex justify-between items-start">
-                                                        <div>
-                                                            {/* INCREASED FONT SIZE */}
-                                                            <h4 className="font-bold text-xl text-teal-900 leading-tight">{bus.name}</h4>
-                                                            {/* INCREASED FONT SIZE */}
-                                                            <p className="text-sm font-bold text-gray-600 mt-0.5">{bus.route}</p>
-                                                        </div>
-                                                        
-                                                        {/* Rating Badge */}
-                                                        {bus.votes > 0 && (
-                                                            <div className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-green-100 shadow-sm">
-                                                                <Star size={10} className="fill-green-700" /> {bus.votes}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Tags Row */}
-                                                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                                                        {/* Type Tag */}
-                                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                                                            isKSRTC ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                        }`}>
-                                                            {bus.type}
-                                                        </span>
-
-                                                        {isIntermediate && (
-                                                            <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                                Via {searchFrom}
-                                                            </span>
-                                                        )}
-
-                                                        {/* Crowd Tag */}
-                                                        <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                            Crowd: {bus.crowdLevel || "Low"}
-                                                        </span>
-
-                                                        {/* Fare Tag */}
-                                                        <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                            Est. Fare: {estimatedFare ? `₹${estimatedFare}` : 'Check'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* ARROW */}
-                                                <div className="text-gray-300 pl-2">
-                                                    <ChevronRight size={24} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        );}) : (
-                                        <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
-                                            No buses found matching your search.
-                                            {buses.length === 0 && (
-                                                <div className="mt-3">
-                                                    <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
-                                                        + Load Sample Data
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
                             )}
-                        </div>
-                    )}
-
-                    {/* DETAIL VIEW */}
-                    {view === 'detail' && selectedBus && (
-                        <div ref={resultsRef}>
-                            <BusPost 
-                                bus={selectedBus} 
-                                onBack={() => {
-                                    if (searchFrom) {
-                                        const toParam = searchTo.trim() || '-';
-                                        navigate(`/search/${encodeURIComponent(searchFrom)}/${encodeURIComponent(toParam)}/${filterType}`);
-                                    } else {
-                                        navigate('/');
-                                    }
-                                }} 
-                                addComment={addComment} 
-                                updateBusDetails={updateBusDetails} 
-                                onVote={handleVote}
-                                reportLate={reportLate}
-                                updateCrowd={updateCrowd}
-                                toggleFavorite={toggleFavorite}
-                                isFavorite={favorites.some(f => f.id === selectedBus.id)}
-                                showToast={showToast}
-                            />
-                        </div>
+                        </>
                     )}
                 </div>
+            )}
 
-                {/* --- RIGHT COLUMN --- */}
-                <div className="hidden lg:block lg:col-span-4">
-                    <Sidebar setView={(v) => navigate(`/${v}`)} onSeed={seedDatabase} favorites={favorites} onSelectFavorite={handleSelectFavorite} points={userPoints} />
+            {/* DETAIL VIEW */}
+            {view === 'detail' && selectedBus && (
+                <div ref={resultsRef}>
+                    <BusPost 
+                        bus={selectedBus} 
+                        onBack={() => {
+                            if (searchFrom) {
+                                const toParam = searchTo.trim() || '-';
+                                navigate(`/search/${encodeURIComponent(searchFrom)}/${encodeURIComponent(toParam)}/${filterType}`);
+                            } else {
+                                navigate('/');
+                            }
+                        }} 
+                        addComment={addComment} 
+                        updateBusDetails={updateBusDetails} 
+                        onVote={handleVote}
+                        reportLate={reportLate}
+                        updateCrowd={updateCrowd}
+                        toggleFavorite={toggleFavorite}
+                        isFavorite={favorites.some(f => f.id === selectedBus.id)}
+                        showToast={showToast}
+                    />
                 </div>
-            </div>
-            
-            {view !== 'board' && <Footer setView={(v) => navigate(`/${v}`)} onQuickSearch={handleQuickSearch} />}
+            )}
+        </div>
+
+        {/* --- RIGHT COLUMN --- */}
+        <div className="hidden lg:block lg:col-span-4">
+            <Sidebar setView={(v) => navigate(`/${v}`)} onSeed={seedDatabase} favorites={favorites} onSelectFavorite={handleSelectFavorite} points={userPoints} />
         </div>
     </div>
-  );
-}
+    
+    {view !== 'board' && <Footer setView={(v) => navigate(`/${v}`)} onQuickSearch={handleQuickSearch} />}
+</div>
+</div>
+);
+};
