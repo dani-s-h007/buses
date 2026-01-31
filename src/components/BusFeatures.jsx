@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // KEPT AS REQUESTED
 import { 
   PlusCircle, Edit3, Clock, Trash2, Save, X, Maximize2, 
   MessageCircle, AlertTriangle, MessageSquare, ThumbsUp, 
   BarChart3, Map, Monitor, Info, ChevronRight, Star, Share2, 
-  ArrowUpCircle, ArrowDownCircle, PlusSquare, Phone, CheckSquare, Square, Loader2
+  ArrowUpCircle, ArrowDownCircle, PlusSquare, Phone, CheckSquare, Square, Loader2, AlertOctagon
 } from 'lucide-react';
-import { formatTime, DEPOT_DATA } from '../utils';
+// MAKE SURE BUS_STOPS_RAW IS EXPORTED FROM YOUR UTILS
+import { formatTime, DEPOT_DATA, BUS_STOPS_RAW } from '../utils';
 
 // --- SKELETON: BUS DETAIL ---
 export const BusDetailSkeleton = () => (
@@ -49,73 +50,136 @@ const getMinutesFromTime = (timeStr) => {
     }
 };
 
-// --- HELPER: CONVERT 12H TO 24H (Strict HH:mm format for Input) ---
+// --- HELPER: CONVERT 12H TO 24H ---
 const to24Hour = (time12h) => {
     if (!time12h || time12h === "TBD") return "";
-    
-    // If it doesn't have AM/PM, it might be raw text. Ensure padding.
     if (!time12h.includes("M")) {
         if(time12h.includes(":")) {
              const [h, m] = time12h.split(':');
-             // Fixes "7:15" -> "07:15"
              return `${h.padStart(2, '0')}:${m}`;
         }
         return "";
     }
-    
     const [time, modifier] = time12h.split(' ');
     let [hours, minutes] = time.split(':');
-    
     if (hours === '12') hours = '00';
     if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
-    
-    // Ensure "07:05" format
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
 };
 
-// 6. ADD BUS FORM
+// 6. ADD BUS FORM (ENHANCED)
 export const AddBusForm = ({ onCancel, onAdd, showToast }) => {
     const [formData, setFormData] = useState({
-        name: '', type: 'Private', from: '', to: '', time: '', stops: '', description: '', endTime: '', distance: ''
+        name: '', type: 'Private', from: '', to: '', time: '', endTime: '', distance: ''
     });
+    // Detailed Stops State: Array of objects
+    const [intermediateStops, setIntermediateStops] = useState([]); // {name: '', time: ''}
     const [isRealRoute, setIsRealRoute] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    // Autocomplete State
+    const [suggestions, setSuggestions] = useState({ from: [], to: [], stop: null });
+    const [activeStopIndex, setActiveStopIndex] = useState(null); // To track which stop row is being edited
+
+    // Handle Input Change with Autocomplete
+    const handleLocationChange = (e, field) => {
+        const val = e.target.value;
+        setFormData({ ...formData, [field]: val });
         
-        if (isSubmitting) return;
+        if (val.length > 1) {
+            const filtered = BUS_STOPS_RAW.filter(s => s.toLowerCase().includes(val.toLowerCase())).slice(0, 5);
+            setSuggestions(prev => ({ ...prev, [field]: filtered }));
+        } else {
+            setSuggestions(prev => ({ ...prev, [field]: [] }));
+        }
+    };
 
+    const selectSuggestion = (val, field) => {
+        setFormData({ ...formData, [field]: val });
+        setSuggestions(prev => ({ ...prev, [field]: [] }));
+    };
+
+    // Intermediate Stop Logic
+    const addStopRow = () => {
+        setIntermediateStops([...intermediateStops, { name: '', time: '' }]);
+    };
+
+    const removeStopRow = (index) => {
+        const newStops = [...intermediateStops];
+        newStops.splice(index, 1);
+        setIntermediateStops(newStops);
+    };
+
+    const handleStopChange = (index, field, value) => {
+        const newStops = [...intermediateStops];
+        newStops[index][field] = value;
+        setIntermediateStops(newStops);
+
+        // Autocomplete for Stop Names
+        if (field === 'name') {
+            setActiveStopIndex(index);
+            if (value.length > 1) {
+                const filtered = BUS_STOPS_RAW.filter(s => s.toLowerCase().includes(value.toLowerCase())).slice(0, 5);
+                setSuggestions(prev => ({ ...prev, stop: filtered }));
+            } else {
+                setSuggestions(prev => ({ ...prev, stop: [] }));
+            }
+        }
+    };
+
+    const selectStopSuggestion = (val, index) => {
+        const newStops = [...intermediateStops];
+        newStops[index].name = val;
+        setIntermediateStops(newStops);
+        setSuggestions(prev => ({ ...prev, stop: [] }));
+        setActiveStopIndex(null);
+    };
+
+    const handleInitialSubmit = (e) => {
+        e.preventDefault();
         if(!formData.from || !formData.to || !formData.time) {
             showToast("Please fill all required fields", "info");
             return;
         }
+        setShowConfirmModal(true);
+    };
 
+    const confirmAndSubmit = async () => {
+        if (isSubmitting) return;
         setIsSubmitting(true);
         
         const route = `${formData.from} - ${formData.to}`;
         const displayTime = formatTime(formData.time);
         const destTime = formData.endTime ? formatTime(formData.endTime) : '00:00 AM';
         
-        const stopNames = formData.stops.split(',').map(s => s.trim()).filter(s => s);
-        const intermediateStops = stopNames.map(name => ({ name, time: 'TBD' }));
+        // Format Intermediate Stops
+        const formattedIntermediate = intermediateStops
+            .filter(s => s.name.trim() !== '')
+            .map(s => ({
+                name: s.name,
+                time: s.time ? formatTime(s.time) : 'TBD'
+            }));
         
         let initialStops = [];
 
         if (isRealRoute) {
             initialStops = [
                 { name: formData.from, time: displayTime }, 
-                ...intermediateStops,                       
+                ...formattedIntermediate,                       
                 { name: formData.to, time: destTime }       
             ];
         } else {
-            initialStops = [...intermediateStops];
+            initialStops = [...formattedIntermediate];
         }
+
+        const stopsString = formattedIntermediate.map(s => s.name).join(', ');
 
         onAdd({ 
             ...formData, 
             time: displayTime, 
             route, 
+            stops: stopsString, // Legacy support string
             votes: 0, 
             comments: [], 
             detailedStops: initialStops, 
@@ -125,20 +189,56 @@ export const AddBusForm = ({ onCancel, onAdd, showToast }) => {
     };
 
     return (
-        <div className="bg-white p-5 rounded-xl shadow-lg border border-gray-100 animate-fade-in max-w-2xl mx-auto">
+        <div className="bg-white p-5 rounded-xl shadow-lg border border-gray-100 animate-fade-in max-w-2xl mx-auto relative">
+            
+            {/* CONFIRMATION MODAL OVERLAY */}
+            {showConfirmModal && (
+                <div className="absolute inset-0 bg-white/95 z-50 rounded-xl flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                    <div className="bg-red-50 p-4 rounded-full text-red-600 mb-4">
+                        <AlertOctagon size={40} />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Verify Information</h3>
+                    <p className="text-xs text-gray-600 mb-6 max-w-xs leading-relaxed">
+                        Please confirm that <strong>{formData.from}</strong> to <strong>{formData.to}</strong> at <strong>{formatTime(formData.time)}</strong> is accurate.
+                        <br/><br/>
+                        <span className="text-red-500 font-bold">⚠️ Warning:</span> Submitting fake or spam data will result in an immediate IP ban. Help us keep the community clean.
+                    </p>
+                    <div className="flex gap-3 w-full max-w-xs">
+                        <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200">Go Back</button>
+                        <button onClick={confirmAndSubmit} disabled={isSubmitting} className="flex-1 py-3 bg-teal-600 text-white font-bold rounded-lg text-xs hover:bg-teal-700 flex items-center justify-center gap-2">
+                            {isSubmitting ? <Loader2 size={14} className="animate-spin"/> : <CheckSquare size={14}/>} Confirm & Post
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <div className="bg-teal-100 p-1.5 rounded-lg text-teal-700"><PlusCircle size={20} /></div>
                 Add New Bus
             </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleInitialSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="relative">
                         <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">From *</label>
-                        <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 outline-none transition-all" placeholder="Origin" onChange={e => setFormData({...formData, from: e.target.value})} required />
+                        <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="Origin" value={formData.from} onChange={e => handleLocationChange(e, 'from')} required />
+                        {suggestions.from.length > 0 && (
+                            <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-40 overflow-y-auto">
+                                {suggestions.from.map((s,i) => (
+                                    <div key={i} onClick={() => selectSuggestion(s, 'from')} className="p-2 hover:bg-teal-50 text-xs cursor-pointer">{s}</div>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                    <div>
+                    <div className="relative">
                         <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">To *</label>
-                        <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 outline-none transition-all" placeholder="Destination" onChange={e => setFormData({...formData, to: e.target.value})} required />
+                        <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="Destination" value={formData.to} onChange={e => handleLocationChange(e, 'to')} required />
+                        {suggestions.to.length > 0 && (
+                            <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-40 overflow-y-auto">
+                                {suggestions.to.map((s,i) => (
+                                    <div key={i} onClick={() => selectSuggestion(s, 'to')} className="p-2 hover:bg-teal-50 text-xs cursor-pointer">{s}</div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -167,9 +267,42 @@ export const AddBusForm = ({ onCancel, onAdd, showToast }) => {
                     <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Bus Name (Optional)</label>
                     <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="e.g. Sreehari Motors" onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
-                <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Intermediate Stops</label>
-                    <textarea className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none h-20 resize-none" placeholder="e.g. Stop A, Stop B, Stop C" onChange={e => setFormData({...formData, stops: e.target.value})}></textarea>
+                
+                {/* --- DYNAMIC STOPS LIST --- */}
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Intermediate Stops & Times</label>
+                    <div className="space-y-2 mb-3">
+                        {intermediateStops.map((stop, index) => (
+                            <div key={index} className="flex gap-2 relative">
+                                <div className="flex-1 relative">
+                                    <input 
+                                        className="w-full p-2 border border-gray-200 rounded text-xs focus:border-teal-500 outline-none"
+                                        placeholder="Stop Name"
+                                        value={stop.name}
+                                        onChange={(e) => handleStopChange(index, 'name', e.target.value)}
+                                    />
+                                    {/* Stop Autocomplete */}
+                                    {activeStopIndex === index && suggestions.stop && suggestions.stop.length > 0 && (
+                                        <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-32 overflow-y-auto">
+                                            {suggestions.stop.map((s, i) => (
+                                                <div key={i} onClick={() => selectStopSuggestion(s, index)} className="p-2 hover:bg-teal-50 text-xs cursor-pointer">{s}</div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <input 
+                                    type="time" 
+                                    className="w-24 p-2 border border-gray-200 rounded text-xs focus:border-teal-500 outline-none"
+                                    value={stop.time}
+                                    onChange={(e) => handleStopChange(index, 'time', e.target.value)}
+                                />
+                                <button type="button" onClick={() => removeStopRow(index)} className="text-red-400 hover:bg-red-50 p-2 rounded"><Trash2 size={14}/></button>
+                            </div>
+                        ))}
+                    </div>
+                    <button type="button" onClick={addStopRow} className="w-full py-2 bg-white border border-dashed border-teal-300 text-teal-600 rounded-lg text-xs font-bold hover:bg-teal-50 flex items-center justify-center gap-1">
+                        <PlusCircle size={14}/> Add Stop
+                    </button>
                 </div>
 
                 <div 
@@ -193,14 +326,9 @@ export const AddBusForm = ({ onCancel, onAdd, showToast }) => {
                     <button type="button" onClick={onCancel} className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-lg font-bold text-xs hover:bg-gray-200 transition-colors">Cancel</button>
                     <button 
                         type="submit" 
-                        disabled={isSubmitting}
-                        className={`flex-1 px-5 py-2.5 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'bg-teal-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 hover:shadow-md text-white'}`}
+                        className="flex-1 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all"
                     >
-                        {isSubmitting ? (
-                            <><Loader2 size={16} className="animate-spin"/> Saving...</>
-                        ) : (
-                            "Submit Bus"
-                        )}
+                        Review & Submit
                     </button>
                 </div>
             </form>
@@ -208,7 +336,7 @@ export const AddBusForm = ({ onCancel, onAdd, showToast }) => {
     );
 };
 
-// 7. BUS POST COMPONENT
+// 7. BUS POST COMPONENT (UNCHANGED from previous fix, just keeping for context)
 export const BusPost = ({ bus, onBack, addComment, updateBusDetails, onVote, reportLate, updateCrowd, toggleFavorite, isFavorite, showToast }) => {
   const navigate = useNavigate();
 
@@ -230,7 +358,6 @@ export const BusPost = ({ bus, onBack, addComment, updateBusDetails, onVote, rep
       return stops.sort((a, b) => getMinutesFromTime(a.time) - getMinutesFromTime(b.time));
   }, [displayStops]);
 
-  // Use sorted stops for View Mode
   const stopsToRender = sortedDisplayStops; 
 
   // Edit States
@@ -240,11 +367,9 @@ export const BusPost = ({ bus, onBack, addComment, updateBusDetails, onVote, rep
   const [editType, setEditType] = useState(bus.type);
   const [editDesc, setEditDesc] = useState(bus.description);
   
-  // Manage Stops
   const [newStopName, setNewStopName] = useState("");
   const [newStopTime, setNewStopTime] = useState("");
 
-  // Find Depot Logic
   const findDepot = (location) => {
       if(!location) return null;
       const loc = location.toLowerCase();
@@ -298,7 +423,6 @@ ${url}`;
       const displayTime = editTime.includes(":") && !editTime.includes("M") ? formatTime(editTime) : editTime;
       const stopsToSave = (bus.detailedStops && bus.detailedStops.length > 0) ? bus.detailedStops : displayStops;
       
-      // Sort before saving
       stopsToSave.sort((a, b) => getMinutesFromTime(a.time) - getMinutesFromTime(b.time));
 
       updateBusDetails(bus.id, {
@@ -329,7 +453,6 @@ ${url}`;
           updatedStops.push(newStop);
       }
 
-      // Re-sort immediately
       updatedStops.sort((a, b) => getMinutesFromTime(a.time) - getMinutesFromTime(b.time));
 
       const stopsString = updatedStops.map(s => s.name).join(', ');
@@ -351,7 +474,6 @@ ${url}`;
   const handleEditStop = (index, field, value) => {
       const updatedStops = [...displayStops];
       let finalValue = value;
-      // Convert 24h input from clock picker back to AM/PM for storage
       if (field === 'time' && value.includes(':') && !value.includes('M') && !value.includes('T')) {
            finalValue = formatTime(value);
       }
@@ -403,7 +525,6 @@ ${url}`;
                         <span className="font-bold text-gray-600 uppercase text-xs tracking-wider">Stop Name</span>
                         <span className="font-bold text-gray-600 uppercase text-xs tracking-wider text-right">Time</span>
                     </div>
-                    {/* USING SORTED STOPS HERE */}
                     {stopsToRender.map((stop, i) => {
                         const isStart = i === 0;
                         const isEnd = i === stopsToRender.length - 1;
@@ -464,7 +585,6 @@ ${url}`;
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Time</label>
-                            {/* FIX: ADDED value and type="time" */}
                             <input 
                                 type="time" 
                                 className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" 
@@ -492,7 +612,6 @@ ${url}`;
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                         <label className="text-[10px] font-bold text-gray-500 uppercase block mb-3">Stops & Route Order</label>
                         <div className="mb-3 space-y-2 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
-                            {/* In Edit mode, we show the raw list (displayStops) */}
                             {displayStops.map((stop, i) => {
                                 const isStart = i === 0;
                                 const isEnd = i === displayStops.length - 1;
@@ -511,9 +630,9 @@ ${url}`;
                                     <div className="flex items-center gap-1 border-l pl-2">
                                         <Clock size={10} className="text-gray-400"/>
                                         <input 
-                                            type="time" /* FIX: Type time for clock picker */
+                                            type="time" 
                                             className="w-20 p-1 border-b border-transparent focus:border-teal-500 focus:outline-none text-right text-[10px] text-gray-500 bg-transparent" 
-                                            value={to24Hour(stop.time)} /* FIX: Format value correctly */
+                                            value={to24Hour(stop.time)} 
                                             onChange={(e) => handleEditStop(i, 'time', e.target.value)}
                                         />
                                     </div>
