@@ -5,7 +5,7 @@ import {
   MessageCircle, AlertTriangle, MessageSquare, ThumbsUp, 
   BarChart3, Map, Monitor, Info, ChevronRight, Star, Share2, 
   ArrowUpCircle, ArrowDownCircle, PlusSquare, Phone, CheckSquare, Square, 
-  Loader2, AlertOctagon, HelpCircle, Search, Ban, Split, GitMerge
+  Loader2, AlertOctagon, HelpCircle, Search, Ban, Split, GitMerge, ShieldAlert
 } from 'lucide-react';
 import { formatTime, DEPOT_DATA, BUS_STOPS_RAW } from '../utils';
 
@@ -67,7 +67,7 @@ const generateDefaultStops = (bus) => {
 };
 
 // ==========================================
-// 6. ADD BUS FORM (UPDATED WITH SMART TIME & NAME FILTER)
+// 6. ADD BUS FORM (UPDATED WITH CONFIRMATION & SPAM CHECK)
 // ==========================================
 export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) => {
     const navigate = useNavigate();
@@ -83,6 +83,7 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Modals
+    const [showConfirmModal, setShowConfirmModal] = useState(false); // Re-added Confirmation
     const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
     const [isStrictDuplicate, setIsStrictDuplicate] = useState(false);
     const [duplicateList, setDuplicateList] = useState([]);
@@ -92,34 +93,30 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
     const [suggestions, setSuggestions] = useState({ from: [], to: [], stop: null });
     const [activeStopIndex, setActiveStopIndex] = useState(null); 
 
-    // --- LOGIC: SMART PARENT DISCOVERY (UPDATED) ---
+    // --- LOGIC: SMART PARENT DISCOVERY ---
     const potentialParentBuses = useMemo(() => {
         if (mode === 'full' || !formData.time) return [];
         
         const inputMinutes = getMinutesFromTime(formatTime(formData.time));
-        const inputNameRaw = normalizeStr(formData.name); // User input name
+        const inputNameRaw = normalizeStr(formData.name);
 
         if (inputMinutes === -1) return [];
 
         return existingBuses.filter(bus => {
             const busStartMinutes = getMinutesFromTime(bus.time);
-            const busEndMinutes = getMinutesFromTime(bus.endTime); // Get Destination Time
+            const busEndMinutes = getMinutesFromTime(bus.endTime); 
 
-            // 1. NAME FILTER: If user typed a name, STRICTLY match it
+            // 1. NAME FILTER: Strict match if typed
             if (inputNameRaw.length > 0 && !normalizeStr(bus.name).includes(inputNameRaw)) {
                 return false;
             }
 
-            // 2. START TIME CHECK: Bus must have started *before* this stop time
-            // (Allowing a 5-hour max travel window)
+            // 2. START TIME CHECK: 5 hour window
             const startDiff = inputMinutes - busStartMinutes;
             if (startDiff < -15 || startDiff > 300) return false; 
 
-            // 3. DESTINATION TIME CHECK (NEW): Stop time must be *before* the bus reaches destination
-            // If busEndMinutes is -1 (TBD), we skip this check
+            // 3. DESTINATION TIME CHECK
             if (busEndMinutes !== -1) {
-                 // Stop Time > End Time = Impossible (Stop is after bus finished trip)
-                 // We allow a small 15 min buffer for delays/clock skew
                  if (inputMinutes > (busEndMinutes + 15)) return false;
             }
 
@@ -148,8 +145,6 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
         const val = e.target.value;
         setFormData({ ...formData, name: val });
         
-        // Only show general autocomplete in 'full' mode. 
-        // In 'stop' mode, the 'potentialParentBuses' logic above takes over the display.
         if (mode === 'full' && val.length > 2) {
             const matches = existingBuses.filter(b => 
                 normalizeStr(b.name).includes(normalizeStr(val))
@@ -241,15 +236,16 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
             return;
         }
 
-        processAdd();
+        // NO DUPLICATES -> SHOW CONFIRMATION MODAL
+        setShowConfirmModal(true);
     };
 
     const handleProceedAnyway = () => {
         setShowDuplicateWarning(false);
-        processAdd();
+        setShowConfirmModal(true);
     };
 
-    const processAdd = () => {
+    const confirmAndSubmit = () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
         
@@ -291,18 +287,18 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
     return (
         <div className="bg-white p-5 rounded-xl shadow-lg border border-gray-100 animate-fade-in max-w-2xl mx-auto relative">
             
-            {/* DUPLICATE WARNING MODAL */}
+            {/* DUPLICATE / SPAM RESTRICTION MODAL */}
             {showDuplicateWarning && (
                  <div className="absolute inset-0 bg-white/95 z-50 rounded-xl flex flex-col items-center justify-center p-6 text-center animate-fade-in">
                     <div className={`p-3 rounded-full mb-3 ${isStrictDuplicate ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-                        {isStrictDuplicate ? <Ban size={32} /> : <HelpCircle size={32} />}
+                        {isStrictDuplicate ? <ShieldAlert size={32} /> : <HelpCircle size={32} />}
                     </div>
                     <h3 className="text-lg font-bold text-gray-900 mb-1">
-                        {isStrictDuplicate ? "Duplicate Blocked" : "Similar Bus Found"}
+                        {isStrictDuplicate ? "Spam Restriction" : "Similar Bus Found"}
                     </h3>
                     <p className="text-xs text-gray-600 mb-4 max-w-xs mx-auto leading-relaxed">
                         {isStrictDuplicate 
-                            ? "A bus with this exact Name, Route, and Time already exists. We blocked this to prevent duplicates."
+                            ? "This record already exists. To prevent spam, duplicate entries are not allowed."
                             : <span>We found buses at <strong>{formData.from}</strong> around <strong>{formatTime(formData.time)}</strong>. Is it one of these?</span>
                         }
                     </p>
@@ -336,6 +332,25 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
                         )}
                     </div>
                  </div>
+            )}
+
+            {/* CONFIRMATION MODAL */}
+            {showConfirmModal && (
+                <div className="absolute inset-0 bg-white/95 z-50 rounded-xl flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                    <div className="bg-teal-50 p-4 rounded-full text-teal-600 mb-4">
+                        <AlertOctagon size={40} />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Verify Information</h3>
+                    <p className="text-xs text-gray-600 mb-6 max-w-xs leading-relaxed">
+                        Please confirm that <strong>{formData.from}</strong> to <strong>{mode === 'full' ? formData.to : '(Intermediate)'}</strong> at <strong>{formatTime(formData.time)}</strong> is accurate.
+                    </p>
+                    <div className="flex gap-3 w-full max-w-xs">
+                        <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200">Go Back</button>
+                        <button onClick={confirmAndSubmit} disabled={isSubmitting} className="flex-1 py-3 bg-teal-600 text-white font-bold rounded-lg text-xs hover:bg-teal-700 flex items-center justify-center gap-2">
+                            {isSubmitting ? <Loader2 size={14} className="animate-spin"/> : <CheckSquare size={14}/>} Confirm & Post
+                        </button>
+                    </div>
+                </div>
             )}
 
             {/* --- TOP TABS (MODE SELECTION) --- */}
