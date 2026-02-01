@@ -127,7 +127,7 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [userPoints, setUserPoints] = useState(0);
   const [resultFilter, setResultFilter] = useState('all'); 
-  
+   
   // PAGINATION STATE
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -141,6 +141,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const resultsRef = useRef(null);
+  const quickLinksRef = useRef(null); // Ref for Quick Links section
 
   // Search State
   const [searchFrom, setSearchFrom] = useState('');
@@ -923,6 +924,9 @@ export default function App() {
                                     <button 
                                         onClick={() => {
                                             setShowBoardInput(true);
+                                            setTimeout(() => {
+                                                quickLinksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            }, 100);
                                         }}
                                         className="w-full bg-white/10 hover:bg-white text-white hover:text-indigo-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
                                     >
@@ -933,7 +937,7 @@ export default function App() {
 
                             {/* TOOLKIT & FARE GRID */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                <div ref={quickLinksRef} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                                     <h4 className="font-bold text-gray-800 mb-2 text-xs uppercase tracking-wide">Quick Links</h4>
                                     <div className="space-y-1">
                                         <button onClick={() => setShowBoardInput(!showBoardInput)} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
@@ -1004,7 +1008,12 @@ export default function App() {
                     )}
 
                     {view === 'add-bus' && (
-                        <AddBusForm onCancel={() => navigate('/')} onAdd={addNewBus} showToast={showToast} />
+                        <AddBusForm 
+                            onCancel={() => navigate('/')} 
+                            onAdd={addNewBus} 
+                            showToast={showToast} 
+                            existingBuses={buses} 
+                        />
                     )}
 
                     {view === 'depot' && (
@@ -1023,20 +1032,37 @@ export default function App() {
                     {/* RESULTS VIEW WITH PAGINATION (ALREADY UPDATED ABOVE) */}
                     {view === 'results' && (
                         <div className="animate-fade-in" ref={resultsRef}>
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
-                                        <Search size={16} className="text-teal-600"/> 
-                                        {searchFrom ? `Results: ${searchFrom}` : "All"} {searchTo && `to ${searchTo}`}
-                                    </h3>
-                                    <button onClick={() => navigate('/')} className="text-[10px] text-gray-400 hover:text-teal-600 underline mt-1">
-                                        Back to Search
-                                    </button>
+                            {/* Result Header */}
+                            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-4">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                    <div>
+                                        <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
+                                            <Search size={20} className="text-teal-600"/> 
+                                            <span className="capitalize">{searchFrom}</span> 
+                                            <ArrowRightLeft size={14} className="text-gray-400"/>
+                                            <span className="capitalize">{searchTo || 'Anywhere'}</span>
+                                        </h3>
+                                        <button onClick={() => navigate('/')} className="text-xs text-gray-400 hover:text-teal-600 font-medium mt-1">
+                                            ← Back to Search
+                                        </button>
+                                    </div>
+
+                                    {/* Check Return Trip Link */}
+                                    {searchFrom && searchTo && searchTo !== '-' && (
+                                        <button 
+                                            onClick={() => {
+                                                navigate(`/search/${encodeURIComponent(searchTo)}/${encodeURIComponent(searchFrom)}/${filterType}`);
+                                            }}
+                                            className="flex items-center justify-center gap-2 bg-teal-50 text-teal-700 px-4 py-2 rounded-lg text-xs font-bold border border-teal-100 hover:bg-teal-100 transition-colors"
+                                        >
+                                            <ArrowRightLeft size={14} /> Check Return Trip ({searchTo} → {searchFrom})
+                                        </button>
+                                    )}
                                 </div>
                                 
-                                <div className="flex bg-gray-100 p-1 rounded-md">
-                                    <button onClick={() => setResultFilter('all')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'all' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>All</button>
-                                    <button onClick={() => setResultFilter('upcoming')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'upcoming' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>Upcoming</button>
+                                <div className="flex gap-2 mt-4">
+                                    <button onClick={() => setResultFilter('all')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${resultFilter === 'all' ? 'bg-teal-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>All Buses</button>
+                                    <button onClick={() => setResultFilter('upcoming')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${resultFilter === 'upcoming' ? 'bg-teal-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Upcoming Only</button>
                                 </div>
                             </div>
 
@@ -1071,7 +1097,6 @@ export default function App() {
                                                     {isKSRTC ? 'KSRTC' : 'PRIVATE'}
                                                 </div>
                                                 
-                                                {/* TOP SECTION: Name & Route */}
                                                 <div className="relative z-10 flex justify-between items-start mb-3">
                                                     <div className="min-w-0 pr-2">
                                                         <h4 className="font-bold text-lg sm:text-xl text-teal-900 leading-tight truncate">{bus.name}</h4>
@@ -1087,18 +1112,13 @@ export default function App() {
                                                     </div>
                                                 </div>
 
-                                                {/* SEPARATOR */}
                                                 <div className="relative z-10 border-t border-dashed border-gray-200 my-3"></div>
 
-                                                {/* BOTTOM SECTION: Time & Tags */}
                                                 <div className="relative z-10 flex items-center gap-3 sm:gap-5">
-                                                    {/* Fixed Time Box */}
                                                     <div className="bg-gray-50 rounded-xl p-2 sm:p-3 w-20 sm:w-24 shrink-0 text-center border border-gray-100 flex flex-col justify-center">
                                                         <span className="block text-2xl sm:text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
                                                         <span className="block text-[10px] sm:text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
                                                     </div>
-
-                                                    {/* Tags Container */}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                                             <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
@@ -1106,17 +1126,14 @@ export default function App() {
                                                             }`}>
                                                                 {bus.type}
                                                             </span>
-
                                                             {isIntermediate && (
                                                                 <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
                                                                     Via {searchFrom}
                                                                 </span>
                                                             )}
-
                                                             <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
                                                                 Crowd: {bus.crowdLevel || "Low"}
                                                             </span>
-
                                                             <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
                                                                 Est. Fare: {estimatedFare ? `₹${estimatedFare}` : 'Check'}
                                                             </span>
@@ -1125,15 +1142,26 @@ export default function App() {
                                                 </div>
                                             </div>
                                             );}) : (
-                                            <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
-                                                No buses found matching your search.
-                                                {buses.length === 0 && (
-                                                    <div className="mt-3">
-                                                        <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
-                                                            + Load Sample Data
+                                            
+                                            // NO RESULTS & ADD BUS CTA
+                                            <div className="flex flex-col items-center justify-center py-12 px-4 bg-white rounded-xl border border-dashed border-gray-300 text-center">
+                                                <div className="bg-gray-50 p-4 rounded-full mb-4">
+                                                    <Bus size={32} className="text-gray-400" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-gray-800 mb-2">No buses found for this route</h3>
+                                                <p className="text-sm text-gray-500 max-w-xs mx-auto mb-6">
+                                                    We couldn't find any buses running from <span className="font-bold">{searchFrom}</span> to <span className="font-bold">{searchTo || 'your destination'}</span>.
+                                                </p>
+                                                <div className="grid gap-3 w-full max-w-sm">
+                                                    <button onClick={() => navigate('/add-bus')} className="w-full bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                                                        <PlusCircle size={18} /> Add Bus For This Route
+                                                    </button>
+                                                    {buses.length === 0 && (
+                                                        <button onClick={seedDatabase} className="w-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 py-3 rounded-xl font-bold text-sm transition-all">
+                                                            Load Sample Data
                                                         </button>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1160,6 +1188,46 @@ export default function App() {
                                             </button>
                                         </div>
                                     )}
+
+                                    {/* --- MOVED FEATURE BANNERS TO RESULTS FOOTER --- */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 pt-6 border-t border-gray-100">
+                                        {/* 1. Community Contribution Banner */}
+                                        <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
+                                            <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                            <div>
+                                                <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                                                    <Star className="text-yellow-300 fill-yellow-300" size={18} />
+                                                    <span>Contribute Data</span>
+                                                </h3>
+                                                <p className="text-teal-100 text-xs sm:text-sm max-w-md leading-relaxed mb-4">
+                                                    Know a bus route or timing we missed? <span className="text-white font-bold">Your single contribution can help thousands of travelers</span> reach their destination on time.
+                                                </p>
+                                            </div>
+                                            <button onClick={() => navigate('/add-bus')} className="w-full bg-white/10 hover:bg-white text-white hover:text-teal-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2">
+                                                <PlusCircle size={16} /> Add Missing Bus
+                                            </button>
+                                        </div>
+
+                                        {/* 2. Digital Stand Display Banner */}
+                                        <div className="bg-gradient-to-r from-indigo-800 to-slate-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
+                                            <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                            <div>
+                                                <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                                                    <Monitor className="text-blue-300" size={18} />
+                                                    <span>Live Bus Stand</span>
+                                                </h3>
+                                                <p className="text-indigo-100 text-xs leading-relaxed mb-4">
+                                                    Turn your shop TV or phone into a real-time departure board for any stop.
+                                                </p>
+                                            </div>
+                                            <button 
+                                                onClick={() => { setShowBoardInput(true); navigate('/'); }}
+                                                className="w-full bg-white/10 hover:bg-white text-white hover:text-indigo-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Maximize2 size={16} /> Launch Display
+                                            </button>
+                                        </div>
+                                    </div>
                                 </>
                             )}
                         </div>

@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom'; // KEPT AS REQUESTED
+import { useNavigate } from 'react-router-dom';
 import { 
   PlusCircle, Edit3, Clock, Trash2, Save, X, Maximize2, 
   MessageCircle, AlertTriangle, MessageSquare, ThumbsUp, 
   BarChart3, Map, Monitor, Info, ChevronRight, Star, Share2, 
-  ArrowUpCircle, ArrowDownCircle, PlusSquare, Phone, CheckSquare, Square, Loader2, AlertOctagon
+  ArrowUpCircle, ArrowDownCircle, PlusSquare, Phone, CheckSquare, Square, 
+  Loader2, AlertOctagon, HelpCircle, Search, Ban, Split, GitMerge
 } from 'lucide-react';
-// IMPORT BUS_STOPS_RAW FOR AUTOCOMPLETE
 import { formatTime, DEPOT_DATA, BUS_STOPS_RAW } from '../utils';
 
 // --- SKELETON: BUS DETAIL ---
@@ -21,45 +21,36 @@ export const BusDetailSkeleton = () => (
   </div>
 );
 
-// --- HELPER: GENERATE DEFAULT SCHEDULE IF MISSING ---
-const generateDefaultStops = (bus) => {
-    const from = bus.from || "Origin";
-    const to = bus.to || "Destination";
-    const startTime = bus.time || "00:00 AM";
-    const endTime = bus.endTime || "00:00 AM"; 
-
-    return [
-        { name: from, time: startTime },
-        { name: to, time: endTime }
-    ];
-};
-
-// --- HELPER: PARSE TIME FOR SORTING ---
+// --- HELPER: TIME CONVERSION ---
 const getMinutesFromTime = (timeStr) => {
-    if (!timeStr || timeStr === 'TBD') return 9999; 
+    if (!timeStr || timeStr === 'TBD') return -1;
     try {
-        const [time, modifier] = timeStr.split(' ');
-        let [hours, minutes] = time.split(':').map(Number);
-
-        if (modifier === 'PM' && hours !== 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
-
-        return hours * 60 + minutes;
-    } catch (e) {
-        return 9999;
-    }
+        let hours = 0, minutes = 0;
+        if (timeStr.toLowerCase().includes('m')) {
+            const [time, modifier] = timeStr.split(' ');
+            let [h, m] = time.split(':');
+            hours = parseInt(h, 10);
+            minutes = parseInt(m, 10);
+            if (modifier.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+            if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        } else if (timeStr.includes(':')) {
+            const [h, m] = timeStr.split(':');
+            hours = parseInt(h, 10);
+            minutes = parseInt(m, 10);
+        }
+        return (hours * 60) + minutes;
+    } catch (e) { return -1; }
 };
 
-// --- HELPER: CONVERT 12H TO 24H ---
+// --- HELPER: STRING NORMALIZATION ---
+const normalizeStr = (str) => {
+    return str ? str.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+};
+
+// --- HELPER: FORMAT DISPLAY TIME ---
 const to24Hour = (time12h) => {
     if (!time12h || time12h === "TBD") return "";
-    if (!time12h.includes("M")) {
-        if(time12h.includes(":")) {
-             const [h, m] = time12h.split(':');
-             return `${h.padStart(2, '0')}:${m}`;
-        }
-        return "";
-    }
+    if (!time12h.includes("M")) return time12h;
     const [time, modifier] = time12h.split(' ');
     let [hours, minutes] = time.split(':');
     if (hours === '12') hours = '00';
@@ -67,26 +58,79 @@ const to24Hour = (time12h) => {
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
 };
 
-// 6. ADD BUS FORM (ENHANCED)
+// --- HELPER: DEFAULT STOPS ---
+const generateDefaultStops = (bus) => {
+    return [
+        { name: bus.from || "Origin", time: bus.time || "00:00 AM" },
+        { name: bus.to || "Destination", time: bus.endTime || "00:00 AM" }
+    ];
+};
+
+// ==========================================
+// 6. ADD BUS FORM (UPDATED WITH SMART TIME & NAME FILTER)
+// ==========================================
 export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) => {
+    const navigate = useNavigate();
+    
+    // --- STATE ---
     const [formData, setFormData] = useState({
         name: '', type: 'Private', from: '', to: '', time: '', endTime: '', distance: ''
     });
-    // Detailed Stops State: Array of objects
-    const [intermediateStops, setIntermediateStops] = useState([]); // {name: '', time: ''}
-    const [isRealRoute, setIsRealRoute] = useState(true);
+    const [intermediateStops, setIntermediateStops] = useState([]); 
+    
+    // Mode Selection
+    const [mode, setMode] = useState('full'); // 'full' | 'stop'
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    
+    // Modals
+    const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+    const [isStrictDuplicate, setIsStrictDuplicate] = useState(false);
+    const [duplicateList, setDuplicateList] = useState([]);
+    const [nameMatches, setNameMatches] = useState([]); 
 
-    // Autocomplete State
+    // Autocomplete
     const [suggestions, setSuggestions] = useState({ from: [], to: [], stop: null });
-    const [activeStopIndex, setActiveStopIndex] = useState(null); // To track which stop row is being edited
+    const [activeStopIndex, setActiveStopIndex] = useState(null); 
 
-    // Handle Input Change with Autocomplete
+    // --- LOGIC: SMART PARENT DISCOVERY (UPDATED) ---
+    const potentialParentBuses = useMemo(() => {
+        if (mode === 'full' || !formData.time) return [];
+        
+        const inputMinutes = getMinutesFromTime(formatTime(formData.time));
+        const inputNameRaw = normalizeStr(formData.name); // User input name
+
+        if (inputMinutes === -1) return [];
+
+        return existingBuses.filter(bus => {
+            const busStartMinutes = getMinutesFromTime(bus.time);
+            const busEndMinutes = getMinutesFromTime(bus.endTime); // Get Destination Time
+
+            // 1. NAME FILTER: If user typed a name, STRICTLY match it
+            if (inputNameRaw.length > 0 && !normalizeStr(bus.name).includes(inputNameRaw)) {
+                return false;
+            }
+
+            // 2. START TIME CHECK: Bus must have started *before* this stop time
+            // (Allowing a 5-hour max travel window)
+            const startDiff = inputMinutes - busStartMinutes;
+            if (startDiff < -15 || startDiff > 300) return false; 
+
+            // 3. DESTINATION TIME CHECK (NEW): Stop time must be *before* the bus reaches destination
+            // If busEndMinutes is -1 (TBD), we skip this check
+            if (busEndMinutes !== -1) {
+                 // Stop Time > End Time = Impossible (Stop is after bus finished trip)
+                 // We allow a small 15 min buffer for delays/clock skew
+                 if (inputMinutes > (busEndMinutes + 15)) return false;
+            }
+
+            return true;
+        }).sort((a, b) => getMinutesFromTime(a.time) - getMinutesFromTime(b.time)).slice(0, 5);
+    }, [mode, formData.time, formData.name, existingBuses]);
+
+    // --- INPUT HANDLERS ---
     const handleLocationChange = (e, field) => {
         const val = e.target.value;
         setFormData({ ...formData, [field]: val });
-        
         if (val.length > 1) {
             const filtered = BUS_STOPS_RAW.filter(s => s.toLowerCase().includes(val.toLowerCase())).slice(0, 5);
             setSuggestions(prev => ({ ...prev, [field]: filtered }));
@@ -100,11 +144,28 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
         setSuggestions(prev => ({ ...prev, [field]: [] }));
     };
 
-    // Intermediate Stop Logic
-    const addStopRow = () => {
-        setIntermediateStops([...intermediateStops, { name: '', time: '' }]);
+    const handleNameChange = (e) => {
+        const val = e.target.value;
+        setFormData({ ...formData, name: val });
+        
+        // Only show general autocomplete in 'full' mode. 
+        // In 'stop' mode, the 'potentialParentBuses' logic above takes over the display.
+        if (mode === 'full' && val.length > 2) {
+            const matches = existingBuses.filter(b => 
+                normalizeStr(b.name).includes(normalizeStr(val))
+            );
+            setNameMatches(matches.slice(0, 5)); 
+        } else {
+            setNameMatches([]);
+        }
     };
 
+    const selectNameMatch = (busName) => {
+        setFormData({ ...formData, name: busName });
+        setNameMatches([]); 
+    };
+
+    const addStopRow = () => setIntermediateStops([...intermediateStops, { name: '', time: '' }]);
     const removeStopRow = (index) => {
         const newStops = [...intermediateStops];
         newStops.splice(index, 1);
@@ -115,8 +176,6 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
         const newStops = [...intermediateStops];
         newStops[index][field] = value;
         setIntermediateStops(newStops);
-
-        // Autocomplete for Stop Names
         if (field === 'name') {
             setActiveStopIndex(index);
             if (value.length > 1) {
@@ -136,105 +195,211 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
         setActiveStopIndex(null);
     };
 
-    const handleInitialSubmit = (e) => {
+    // --- ALGORITHM: SUBMIT & DUPLICATE CHECK ---
+    const handleSubmit = (e) => {
         e.preventDefault();
-        if(!formData.from || !formData.to || !formData.time) {
+        
+        if(!formData.from || !formData.time || (mode === 'full' && !formData.to)) {
             showToast("Please fill all required fields", "info");
             return;
         }
 
-        // --- DUPLICATE CHECK ---
-        const displayTime = formatTime(formData.time);
-        const isDuplicate = existingBuses.some(b => 
-            b.from.toLowerCase() === formData.from.toLowerCase().trim() &&
-            b.to.toLowerCase() === formData.to.toLowerCase().trim() &&
-            b.time === displayTime
-        );
+        const inputName = normalizeStr(formData.name);
+        const inputFrom = normalizeStr(formData.from);
+        const inputTo = normalizeStr(formData.to);
+        const inputMinutes = getMinutesFromTime(formData.time);
 
-        if (isDuplicate) {
-            showToast("This bus timing already exists!", "error");
+        const strictMatches = [];
+        const softMatches = [];
+
+        existingBuses.forEach(bus => {
+            const busMinutes = getMinutesFromTime(bus.time);
+            const busFrom = normalizeStr(bus.from);
+            const busTo = normalizeStr(bus.to);
+            const busName = normalizeStr(bus.name);
+            const timeDelta = Math.abs(busMinutes - inputMinutes);
+
+            if (busName === inputName && busFrom === inputFrom && busTo === inputTo && timeDelta <= 5) {
+                strictMatches.push(bus);
+            }
+            else if (timeDelta <= 15) { 
+                if (busFrom === inputFrom) softMatches.push(bus);
+            }
+        });
+
+        if (strictMatches.length > 0) {
+            setDuplicateList(strictMatches);
+            setIsStrictDuplicate(true);
+            setShowDuplicateWarning(true);
             return;
         }
 
-        setShowConfirmModal(true);
+        if (softMatches.length > 0) {
+            setDuplicateList(softMatches);
+            setIsStrictDuplicate(false);
+            setShowDuplicateWarning(true);
+            return;
+        }
+
+        processAdd();
     };
 
-    const confirmAndSubmit = async () => {
+    const handleProceedAnyway = () => {
+        setShowDuplicateWarning(false);
+        processAdd();
+    };
+
+    const processAdd = () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
         
-        const route = `${formData.from} - ${formData.to}`;
         const displayTime = formatTime(formData.time);
         const destTime = formData.endTime ? formatTime(formData.endTime) : '00:00 AM';
         
-        // Format Intermediate Stops
+        const route = mode === 'full' 
+            ? `${formData.from} - ${formData.to}` 
+            : `${formData.from} (Partial)`;
+        
         const formattedIntermediate = intermediateStops
             .filter(s => s.name.trim() !== '')
-            .map(s => ({
-                name: s.name,
-                time: s.time ? formatTime(s.time) : 'TBD'
-            }));
+            .map(s => ({ name: s.name, time: s.time ? formatTime(s.time) : 'TBD' }));
         
         let initialStops = [];
-
-        if (isRealRoute) {
-            initialStops = [
-                { name: formData.from, time: displayTime }, 
-                ...formattedIntermediate,                       
-                { name: formData.to, time: destTime }       
-            ];
+        if (mode === 'full') {
+            initialStops = [{ name: formData.from, time: displayTime }, ...formattedIntermediate, { name: formData.to, time: destTime }];
         } else {
-            initialStops = [...formattedIntermediate];
+            initialStops = [{ name: formData.from, time: displayTime }, ...formattedIntermediate];
         }
 
         const stopsString = formattedIntermediate.map(s => s.name).join(', ');
 
         onAdd({ 
             ...formData, 
-            time: displayTime, 
-            route, 
-            stops: stopsString, // Legacy support string
-            votes: 0, 
-            comments: [], 
-            detailedStops: initialStops, 
-            status: 'On Time', 
-            crowd: 'Low' 
+            to: mode === 'full' ? formData.to : '', 
+            time: displayTime, route, stops: stopsString, 
+            votes: 0, comments: [], detailedStops: initialStops, 
+            status: 'On Time', crowd: 'Low' 
         });
+    };
+
+    const getSlug = (bus) => {
+        const clean = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '-') : '';
+        const timeClean = bus.time ? bus.time.toLowerCase().replace(' ', '-').replace(':', '') : '0000';
+        return `${clean(bus.from)}-to-${clean(bus.to)}-${timeClean}-${clean(bus.type)}`;
     };
 
     return (
         <div className="bg-white p-5 rounded-xl shadow-lg border border-gray-100 animate-fade-in max-w-2xl mx-auto relative">
             
-            {/* CONFIRMATION MODAL OVERLAY */}
-            {showConfirmModal && (
-                <div className="absolute inset-0 bg-white/95 z-50 rounded-xl flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-                    <div className="bg-red-50 p-4 rounded-full text-red-600 mb-4">
-                        <AlertOctagon size={40} />
+            {/* DUPLICATE WARNING MODAL */}
+            {showDuplicateWarning && (
+                 <div className="absolute inset-0 bg-white/95 z-50 rounded-xl flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                    <div className={`p-3 rounded-full mb-3 ${isStrictDuplicate ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                        {isStrictDuplicate ? <Ban size={32} /> : <HelpCircle size={32} />}
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Verify Information</h3>
-                    <p className="text-xs text-gray-600 mb-6 max-w-xs leading-relaxed">
-                        Please confirm that <strong>{formData.from}</strong> to <strong>{formData.to}</strong> at <strong>{formatTime(formData.time)}</strong> is accurate.
-                        <br/><br/>
-                        <span className="text-red-500 font-bold">⚠️ Warning:</span> Submitting fake or spam data will result in an immediate IP ban. Help us keep the community clean.
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">
+                        {isStrictDuplicate ? "Duplicate Blocked" : "Similar Bus Found"}
+                    </h3>
+                    <p className="text-xs text-gray-600 mb-4 max-w-xs mx-auto leading-relaxed">
+                        {isStrictDuplicate 
+                            ? "A bus with this exact Name, Route, and Time already exists. We blocked this to prevent duplicates."
+                            : <span>We found buses at <strong>{formData.from}</strong> around <strong>{formatTime(formData.time)}</strong>. Is it one of these?</span>
+                        }
                     </p>
-                    <div className="flex gap-3 w-full max-w-xs">
-                        <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200">Go Back</button>
-                        <button onClick={confirmAndSubmit} disabled={isSubmitting} className="flex-1 py-3 bg-teal-600 text-white font-bold rounded-lg text-xs hover:bg-teal-700 flex items-center justify-center gap-2">
-                            {isSubmitting ? <Loader2 size={14} className="animate-spin"/> : <CheckSquare size={14}/>} Confirm & Post
-                        </button>
+                    
+                    <div className="w-full max-w-sm max-h-48 overflow-y-auto border border-gray-200 rounded-lg mb-4 bg-gray-50 text-left">
+                        {duplicateList.map((bus, idx) => (
+                            <div key={idx} className="p-3 border-b border-gray-200 last:border-0 bg-white flex justify-between items-center group hover:bg-teal-50 transition-colors">
+                                <div>
+                                    <div className="font-bold text-sm text-gray-800">{bus.name || "Bus Service"}</div>
+                                    <div className="text-[10px] text-gray-500">{bus.route}</div>
+                                    <div className="text-[10px] font-bold text-teal-600 mt-0.5">{bus.type} • {bus.time}</div>
+                                </div>
+                                <button 
+                                    onClick={() => navigate(`/bus/${getSlug(bus)}`)}
+                                    className="bg-teal-100 text-teal-700 p-2 rounded-lg hover:bg-teal-200 transition-colors flex items-center gap-1 text-[10px] font-bold"
+                                >
+                                    Open <ChevronRight size={14} />
+                                </button>
+                            </div>
+                        ))}
                     </div>
-                </div>
+
+                    <div className="flex gap-2 w-full max-w-xs">
+                        <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200">
+                            Cancel
+                        </button>
+                        {!isStrictDuplicate && (
+                            <button onClick={handleProceedAnyway} className="flex-1 py-3 bg-teal-600 text-white font-bold rounded-lg text-xs hover:bg-teal-700 shadow-sm">
+                                Create Anyway
+                            </button>
+                        )}
+                    </div>
+                 </div>
             )}
 
-            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <div className="bg-teal-100 p-1.5 rounded-lg text-teal-700"><PlusCircle size={20} /></div>
-                Add New Bus
-            </h2>
-            <form onSubmit={handleInitialSubmit} className="space-y-4">
+            {/* --- TOP TABS (MODE SELECTION) --- */}
+            <div className="flex mb-6 bg-gray-100 p-1 rounded-xl">
+                <button 
+                    onClick={() => setMode('full')}
+                    className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${mode === 'full' ? 'bg-white text-teal-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    <PlusCircle size={14} /> New Main Route
+                </button>
+                <button 
+                    onClick={() => setMode('stop')}
+                    className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${mode === 'stop' ? 'bg-white text-indigo-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    <GitMerge size={14} /> Add Intermediate Stop
+                </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                
+                {/* --- SMART DISCOVERY FOR INTERMEDIATE STOPS --- */}
+                {mode === 'stop' && (
+                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-4 animate-fade-in">
+                        <h4 className="text-xs font-bold text-indigo-900 mb-2 flex items-center gap-2"><HelpCircle size={14}/> Is this stop for an existing bus?</h4>
+                        <p className="text-[10px] text-indigo-700 mb-3 leading-relaxed">
+                            Enter the stop name and time. 
+                            {formData.name ? <span> We are filtering for buses named <strong>"{formData.name}"</strong>.</span> : " We will check for any buses."}
+                        </p>
+                        
+                        {potentialParentBuses.length > 0 ? (
+                            <div className="space-y-2">
+                                <div className="text-[10px] font-bold text-gray-500 uppercase">Valid Parent Buses:</div>
+                                {potentialParentBuses.map((bus, i) => (
+                                    <div key={i} className="bg-white p-3 rounded-lg border border-indigo-100 shadow-sm flex justify-between items-center">
+                                        <div>
+                                            <div className="text-xs font-bold text-gray-800">{bus.name}</div>
+                                            <div className="text-[10px] text-gray-500">{bus.route}</div>
+                                            <div className="text-[10px] font-bold text-teal-600 mt-0.5">Start: {bus.time} {bus.endTime && `• End: ${bus.endTime}`}</div>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={() => navigate(`/bus/${getSlug(bus)}`)}
+                                            className="bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-indigo-700 transition-colors"
+                                        >
+                                            Add Stop Here
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            formData.time && <div className="text-[10px] text-gray-400 italic">
+                                {formData.name 
+                                    ? `No buses named "${formData.name}" found currently running on this route at this time.`
+                                    : `No buses found running within the valid time window (${formatTime(formData.time)}).`
+                                }
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                     <div className="relative">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">From *</label>
-                        <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="Origin" value={formData.from} onChange={e => handleLocationChange(e, 'from')} required />
+                        <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">{mode === 'full' ? 'From *' : 'Stop Name *'}</label>
+                        <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder={mode === 'full' ? "Origin" : "Where is the stop?"} value={formData.from} onChange={e => handleLocationChange(e, 'from')} required />
                         {suggestions.from.length > 0 && (
                             <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-40 overflow-y-auto">
                                 {suggestions.from.map((s,i) => (
@@ -243,21 +408,25 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
                             </div>
                         )}
                     </div>
-                    <div className="relative">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">To *</label>
-                        <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="Destination" value={formData.to} onChange={e => handleLocationChange(e, 'to')} required />
-                        {suggestions.to.length > 0 && (
-                            <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-40 overflow-y-auto">
-                                {suggestions.to.map((s,i) => (
-                                    <div key={i} onClick={() => selectSuggestion(s, 'to')} className="p-2 hover:bg-teal-50 text-xs cursor-pointer">{s}</div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    
+                    {mode === 'full' && (
+                        <div className="relative">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">To *</label>
+                            <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="Destination" value={formData.to} onChange={e => handleLocationChange(e, 'to')} required />
+                            {suggestions.to.length > 0 && (
+                                <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-40 overflow-y-auto">
+                                    {suggestions.to.map((s,i) => (
+                                        <div key={i} onClick={() => selectSuggestion(s, 'to')} className="p-2 hover:bg-teal-50 text-xs cursor-pointer">{s}</div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
+
                 <div className="grid grid-cols-3 gap-4">
                     <div>
-                        <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Start Time *</label>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">{mode === 'full' ? 'Start Time *' : 'Stop Time *'}</label>
                         <input type="time" className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" onChange={e => setFormData({...formData, time: e.target.value})} required />
                     </div>
                     <div>
@@ -273,16 +442,44 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
                         </select>
                     </div>
                 </div>
-                <div>
-                      <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Distance (KM) <span className="text-gray-400 font-normal normal-case">(For Fare)</span></label>
-                      <input type="number" className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="e.g. 45" onChange={e => setFormData({...formData, distance: e.target.value})} />
-                </div>
-                <div>
+                
+                {mode === 'full' && (
+                    <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Distance (KM) <span className="text-gray-400 font-normal normal-case">(For Fare)</span></label>
+                          <input type="number" className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="e.g. 45" onChange={e => setFormData({...formData, distance: e.target.value})} />
+                    </div>
+                )}
+                
+                {/* BUS NAME FIELD */}
+                <div className="relative">
                     <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1.5">Bus Name (Optional)</label>
-                    <input className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" placeholder="e.g. Sreehari Motors" onChange={e => setFormData({...formData, name: e.target.value})} />
+                    <input 
+                        className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:border-teal-500 outline-none" 
+                        placeholder={mode === 'stop' ? "Filter by Bus Name..." : "e.g. Sreehari Motors"} 
+                        value={formData.name}
+                        onChange={handleNameChange} 
+                    />
+                    
+                    {/* NAME MATCHES DROPDOWN (Only for Main Route Mode) */}
+                    {nameMatches.length > 0 && mode === 'full' && (
+                        <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-40 overflow-y-auto">
+                            <div className="p-2 bg-gray-50 text-[10px] font-bold text-gray-500 uppercase border-b border-gray-200 sticky top-0">Existing Buses</div>
+                            {nameMatches.map((bus, idx) => (
+                                <div key={idx} className="p-2 hover:bg-teal-50 border-b border-gray-50 last:border-0 cursor-pointer group" onClick={() => selectNameMatch(bus.name)}>
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="text-xs font-bold text-gray-800">{bus.name}</div>
+                                            <div className="text-[10px] text-gray-500">{bus.route}</div>
+                                        </div>
+                                        <div className="text-[10px] font-mono font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded">{bus.time}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 
-                {/* --- DYNAMIC STOPS LIST --- */}
+                {/* DYNAMIC STOPS LIST (Visible in both modes) */}
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                     <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Intermediate Stops & Times</label>
                     <div className="space-y-2 mb-3">
@@ -295,7 +492,6 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
                                         value={stop.name}
                                         onChange={(e) => handleStopChange(index, 'name', e.target.value)}
                                     />
-                                    {/* Stop Autocomplete */}
                                     {activeStopIndex === index && suggestions.stop && suggestions.stop.length > 0 && (
                                         <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-32 overflow-y-auto">
                                             {suggestions.stop.map((s, i) => (
@@ -319,30 +515,15 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
                     </button>
                 </div>
 
-                <div 
-                    className="flex items-center gap-3 p-3 bg-teal-50 border border-teal-100 rounded-lg cursor-pointer hover:bg-teal-100 transition-colors"
-                    onClick={() => setIsRealRoute(!isRealRoute)}
-                >
-                    <div className={`text-teal-600 transition-all ${isRealRoute ? 'scale-110' : 'opacity-50'}`}>
-                        {isRealRoute ? <CheckSquare size={20} /> : <Square size={20} />}
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-teal-900">Is this the real Origin & Destination?</p>
-                        <p className="text-[9px] text-teal-700 leading-tight mt-0.5">
-                            {isRealRoute 
-                                ? "Yes: 'From' & 'To' will be added to the schedule automatically." 
-                                : "No: Only intermediate stops will be listed initially."}
-                        </p>
-                    </div>
-                </div>
-
                 <div className="flex gap-3 pt-2">
                     <button type="button" onClick={onCancel} className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-lg font-bold text-xs hover:bg-gray-200 transition-colors">Cancel</button>
                     <button 
                         type="submit" 
-                        className="flex-1 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all"
+                        className={`flex-1 px-5 py-2.5 text-white rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 ${mode === 'full' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                        disabled={isSubmitting}
                     >
-                        Review & Submit
+                         {isSubmitting ? <Loader2 size={14} className="animate-spin"/> : (mode === 'full' ? <CheckSquare size={14}/> : <GitMerge size={14}/>)}
+                         {mode === 'full' ? " Create Route" : " Create New Entry"}
                     </button>
                 </div>
             </form>
@@ -350,7 +531,9 @@ export const AddBusForm = ({ onCancel, onAdd, showToast, existingBuses = [] }) =
     );
 };
 
-// 7. BUS POST COMPONENT (UNCHANGED from previous fix, just keeping for context)
+// ==========================================
+// 7. BUS POST COMPONENT (FULL)
+// ==========================================
 export const BusPost = ({ bus, onBack, addComment, updateBusDetails, onVote, reportLate, updateCrowd, toggleFavorite, isFavorite, showToast }) => {
   const navigate = useNavigate();
 
