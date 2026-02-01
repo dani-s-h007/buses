@@ -7,7 +7,7 @@ import { calculateFare } from '../utils';
 import { getFirestore, collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 
-// --- FIREBASE INIT (Safe Check for Shared Instance) ---
+// --- FIREBASE INIT ---
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -31,7 +31,7 @@ export const CarouselSkeleton = () => (
   <div className="w-full h-36 md:h-52 rounded-xl bg-gray-200 animate-pulse mb-5"></div>
 );
 
-// 0.1 IMAGE CAROUSEL
+// 0.1 IMAGE CAROUSEL (Animated Text)
 export const ImageCarousel = () => {
   const images = [
     new URL('../assets/bus/keralabuses.png', import.meta.url).href,
@@ -41,7 +41,9 @@ export const ImageCarousel = () => {
   ];
   
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [showMalayalam, setShowMalayalam] = useState(true); // State to toggle language
 
+  // Rotate Images
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % images.length);
@@ -49,18 +51,37 @@ export const ImageCarousel = () => {
     return () => clearInterval(interval);
   }, [images.length]);
 
+  // Rotate Text (Malayalam <-> English)
+  useEffect(() => {
+    const textInterval = setInterval(() => {
+      setShowMalayalam((prev) => !prev);
+    }, 3000); // Switch every 3 seconds
+    return () => clearInterval(textInterval);
+  }, []);
+
   return (
     <div className="relative w-full h-36 md:h-52 rounded-xl overflow-hidden mb-5 shadow-sm group bg-gray-200">
+       {/* Background Images */}
        {images.map((img, index) => (
          <div key={index} className={`absolute inset-0 transition-opacity duration-1000 ${index === currentIndex ? 'opacity-100' : 'opacity-0'}`}>
            <img src={img} alt="Kerala Bus" className="w-full h-full object-cover" />
          </div>
        ))}
-       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
-       <div className="absolute bottom-4 left-4 text-white max-w-lg z-10">
-          <h2 className="text-xl font-bold mb-0.5 drop-shadow-sm">Kerala Bus Timings & Live Status</h2>
-          <p className="text-xs opacity-90 drop-shadow-sm font-medium">Search KSRTC, Swift & Private Bus Routes Instantly.</p>
+       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+       
+       {/* Animated Text Overlay */}
+       <div className="absolute bottom-4 left-4 text-white max-w-lg z-10 transition-all duration-500">
+          <h2 className={`text-2xl md:text-3xl font-bold mb-1 drop-shadow-sm leading-tight transition-all duration-700 ${showMalayalam ? 'text-yellow-400' : 'text-white'}`}>
+             {showMalayalam ? "കേരള ബസ് സമയം & ലൈവ് സ്റ്റാറ്റസ്" : "Kerala Bus Timings & Live Status"}
+          </h2>
+          <p className="text-xs md:text-sm opacity-90 drop-shadow-sm font-medium leading-relaxed mt-1 transition-all duration-700">
+             {showMalayalam 
+               ? "യാത്ര ഇനി എളുപ്പമാക്കാം. ബസ് സമയം വിവരങ്ങൾ ഒറ്റ ക്ലിക്കിൽ." 
+               : "Search KSRTC, Swift & Private Bus Routes Instantly."}
+          </p>
        </div>
+
+       {/* Carousel Indicators */}
        <div className="absolute bottom-3 right-4 flex justify-center gap-1.5 z-10">
          {images.map((_, idx) => (
            <button 
@@ -167,7 +188,7 @@ export const Sidebar = ({ setView, onSeed, favorites, onSelectFavorite, points }
     );
 };
 
-// 3. NEWS TICKER (Disclaimer removed from here)
+// 3. NEWS TICKER
 export const NewsTicker = () => {
   const [messages, setMessages] = useState([]);
   
@@ -254,14 +275,16 @@ export const FareCalculator = () => {
     );
 };
 
-// 5. SEO CONTENT (Disclaimer added here)
+// 5. SEO CONTENT (Malayalam First)
 export const SeoContent = ({ onQuickSearch }) => (
     <div className="pb-6">
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm mt-6">
-            <h2 className="text-base font-bold text-gray-900 mb-3 pb-2 border-b border-gray-50">Kerala Bus Timings & Route Planner - KSRTC & Private</h2>
+            <h2 className="text-base font-bold text-gray-900 mb-3 pb-2 border-b border-gray-50">
+                Kerala Bus Timings & Route Planner <span className="font-medium text-teal-700">(കേരള ബസ് സമയം)</span> - KSRTC & Private
+            </h2>
             <div className="text-xs text-gray-600 leading-relaxed space-y-2 mb-3">
                 <p>
-                    Find the most accurate and up-to-date <strong>Kerala Bus Timings</strong>. Whether you are looking for <strong>KSRTC Super Fast</strong>, <strong>Low Floor AC</strong>, <strong>Swift Deluxe</strong>, or <strong>Private Bus</strong> schedules,evidebus.com is your ultimate travel companion. We cover all major districts including Malappuram, Kozhikode, Wayanad, Palakkad, Thrissur, Ernakulam, and Thiruvananthapuram.
+                    Find the most accurate and up-to-date <strong>Kerala Bus Timings</strong>. Whether you are looking for <strong>KSRTC Super Fast</strong>, <strong>Low Floor AC</strong>, <strong>Swift Deluxe</strong>, or <strong>Private Bus</strong> schedules, evidebus.com is your ultimate travel companion. We cover all major districts including Malappuram, Kozhikode, Wayanad, Palakkad, Thrissur, Ernakulam, and Thiruvananthapuram.
                 </p>
                 <p>
                     Plan your journey from <strong>Pandikkad to Perinthalmanna</strong>, <strong>Manjeri to Kozhikode</strong>, or any other route with our easy-to-use search engine. Get live updates, report delays, and contribute to the community.
@@ -275,12 +298,17 @@ export const SeoContent = ({ onQuickSearch }) => (
                 ))}
             </div>
 
-            {/* DISCLAIMER SECTION */}
+            {/* DISCLAIMER SECTION (Malayalam First) */}
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex gap-2 items-start">
                 <AlertTriangle size={14} className="text-red-700 mt-0.5 shrink-0" />
-                <p className="text-[10px] text-red-800 leading-relaxed text-justify font-medium">
-                    Disclaimer: Vehicle details may not be exact. Actual timings may vary according to the traffic and road conditions. We are not responsible for any time conflicts. We are not having any affiliation with any of the operators and schedule details may vary significantly depending on the operators. evidebus.com is just a directory of buses.
-                </p>
+                <div className="space-y-2">
+                    <p className="text-[10px] text-red-800 leading-relaxed text-justify font-medium">
+                        നിരാകരണം: വാഹന വിവരങ്ങൾ പൂർണ്ണമായി ശരിയാകണമെന്നില്ല. ട്രാഫിക്, റോഡ് അവസ്ഥകൾ അനുസരിച്ച് സമയത്തിൽ മാറ്റം വരാം. ഈ വെബ്സൈറ്റ് ബസ് വിവരങ്ങൾ നൽകുന്ന ഒരു ഡയറക്ടറി മാത്രമാണ്.
+                    </p>
+                    <p className="text-[10px] text-red-800 leading-relaxed text-justify font-medium border-t border-red-200 pt-1">
+                        Disclaimer: Vehicle details may not be exact. Actual timings may vary according to the traffic and road conditions. We are not responsible for any time conflicts. We are not having any affiliation with any of the operators and schedule details may vary significantly depending on the operators. evidebus.com is just a directory of buses.
+                    </p>
+                </div>
             </div>
         </div>
     </div>

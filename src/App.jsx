@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, MapPin, ArrowRightLeft, ChevronRight, Clock, Bus, Trophy, Star, Monitor, X, Maximize2, Sun, Moon, PlusCircle, Phone, ChevronLeft } from 'lucide-react';
+import { Search, MapPin, ArrowRightLeft, ChevronRight, Clock, Bus, Trophy, Star, Monitor, X, Maximize2, Sun, Moon, PlusCircle, Phone, ChevronLeft, Globe } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, arrayUnion, query, orderBy, increment } from "firebase/firestore";
 
@@ -154,6 +154,32 @@ export default function App() {
       const id = Date.now();
       setToasts(prev => [...prev, { id, message, type }]);
       setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+  }, []);
+
+  // GOOGLE TRANSLATE INJECTION
+  useEffect(() => {
+      // Check if script already exists to avoid duplication
+      if (document.getElementById('google-translate-script')) return;
+
+      const addScript = document.createElement('script');
+      addScript.id = 'google-translate-script';
+      addScript.setAttribute('src', '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit');
+      document.body.appendChild(addScript);
+
+      window.googleTranslateElementInit = () => {
+          if (window.google && window.google.translate) {
+              new window.google.translate.TranslateElement({
+                  pageLanguage: 'en',
+                  layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
+                  autoDisplay: false,
+                  includedLanguages: 'en,ml,hi,ta,kn' // English, Malayalam, Hindi, Tamil, Kannada
+              }, 'google_translate_element');
+              
+              // Second instance for mobile if needed, though ID must be unique. 
+              // We will move the element in DOM or handle via CSS usually. 
+              // For simplicity, we target one ID and we will place it strategically.
+          }
+      };
   }, []);
 
   // Load Persistence
@@ -510,7 +536,7 @@ export default function App() {
   if (userPoints >= 1000) userLevel = "Expert";
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-gray-700 pb-20">
+    <div className="min-h-screen bg-slate-50 font-sans text-gray-700 pb-20 relative">
         {/* --- BOARD VIEW --- */}
         {view === 'board' && (
              <div className={`fixed inset-0 z-50 p-6 md:p-10 flex flex-col font-mono overflow-hidden transition-colors duration-500 ${boardDarkMode ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
@@ -593,6 +619,21 @@ export default function App() {
           ::-webkit-scrollbar { width: 4px; }
           ::-webkit-scrollbar-track { background: #f1f1f1; }
           ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+          
+          /* Custom Google Translate Styling */
+          .goog-te-gadget-simple {
+             background-color: transparent !important;
+             border: none !important;
+             padding: 0 !important;
+             font-size: 12px !important;
+             display: flex !important;
+             align-items: center !important;
+             cursor: pointer !important;
+          }
+          .goog-te-gadget-simple img { display: none !important; }
+          .goog-te-menu-value { color: #555 !important; }
+          .goog-te-banner-frame { display: none !important; }
+          body { top: 0px !important; }
         `}</style>
 
         <ToastContainer toasts={toasts} />
@@ -808,6 +849,293 @@ export default function App() {
                                                         )}
                                                     </div>
                                                 )}
+                                            </div>
+
+                                            {/* PAGINATION CONTROLS */}
+                                            {filteredBuses.length > itemsPerPage && (
+                                                <div className="flex justify-center items-center gap-4 mt-6">
+                                                    <button 
+                                                        onClick={() => handlePageChange(currentPage - 1)} 
+                                                        disabled={currentPage === 1}
+                                                        className={`p-2 rounded-lg border transition-all ${currentPage === 1 ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
+                                                    >
+                                                        <ChevronLeft size={20} />
+                                                    </button>
+                                                    <span className="text-xs font-bold text-gray-600">
+                                                        Page {currentPage} of {totalPages}
+                                                    </span>
+                                                    <button 
+                                                        onClick={() => handlePageChange(currentPage + 1)} 
+                                                        disabled={currentPage === totalPages}
+                                                        className={`p-2 rounded-lg border transition-all ${currentPage === totalPages ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
+                                                    >
+                                                        <ChevronRight size={20} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            
+                            {/* --- FEATURE PROMOTION BANNERS --- */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 mt-6">
+                                
+                                {/* 1. Community Contribution Banner */}
+                                <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
+                                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                    
+                                    <div>
+                                       <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                                            <Star className="text-yellow-300 fill-yellow-300" size={18} />
+                                            <span>Contribute Data</span>
+                                        </h3>
+                                        <p className="text-teal-100 text-xs sm:text-sm max-w-md leading-relaxed">
+
+                                            Know a bus route or timing we missed? <span className="text-white font-bold">Your single contribution can help thousands of travelers</span> reach their destination on time.
+
+                                        </p>
+                                        <br />
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => navigate('/add-bus')}
+                                        className="w-full bg-white/10 hover:bg-white text-white hover:text-teal-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <PlusCircle size={16} /> Add Missing Bus
+                                    </button>
+                                </div>
+
+                                {/* 2. Digital Stand Display Banner */}
+                                <div className="bg-gradient-to-r from-indigo-800 to-slate-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
+                                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                    
+                                    <div>
+                                        <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                                            <Monitor className="text-blue-300" size={18} />
+                                            <span>Live Bus Stand</span>
+                                        </h3>
+                                        <p className="text-indigo-100 text-xs leading-relaxed mb-4">
+                                            Turn your shop TV or phone into a real-time departure board for any stop.
+                                        </p>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => {
+                                            setShowBoardInput(true);
+                                        }}
+                                        className="w-full bg-white/10 hover:bg-white text-white hover:text-indigo-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Maximize2 size={16} /> Launch Display
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* TOOLKIT & FARE GRID */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                    <h4 className="font-bold text-gray-800 mb-2 text-xs uppercase tracking-wide">Quick Links</h4>
+                                    <div className="space-y-1">
+                                        <button onClick={() => setShowBoardInput(!showBoardInput)} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                            <Monitor size={14} /> Digital Bus Stand Display
+                                        </button>
+                                        
+                                        {/* Board Input Dropdown */}
+                                        {showBoardInput && (
+                                            <div className="p-3 bg-gray-50 rounded-lg animate-fade-in border border-gray-200 mb-2 relative">
+                                                <input 
+                                                    className="w-full p-2 border border-gray-200 rounded text-xs mb-2 outline-none focus:border-teal-500" 
+                                                    placeholder="Enter Stop Name (e.g. Pandikkad)"
+                                                    value={boardStop}
+                                                    onChange={(e) => {
+                                                        setBoardStop(e.target.value);
+                                                        updateSuggestions(e.target.value, 'board'); 
+                                                    }}
+                                                />
+                                                {/* Suggestions Specific to Board */}
+                                                {suggestionsBoard.length > 0 && (
+                                                    <div className="bg-white border border-gray-200 rounded text-xs mb-2 max-h-32 overflow-y-auto absolute z-20 w-full left-0 top-12 shadow-lg">
+                                                        {suggestionsBoard.map((s, i) => (
+                                                            <div key={i} onClick={() => { setBoardStop(s); setSuggestionsBoard([]); }} className="p-2 hover:bg-teal-50 cursor-pointer border-b border-gray-50">{s}</div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <button onClick={openBoard} className="w-full bg-teal-600 text-white text-xs font-bold py-2 rounded flex items-center justify-center gap-1 hover:bg-teal-700">
+                                                    <Maximize2 size={12}/> Open Board View
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <button onClick={() => navigate('/add-bus')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                            <PlusCircle size={14} /> Add Missing Bus
+                                        </button>
+
+                                        <button onClick={() => navigate('/depot')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                            <Phone size={14} /> Depot Enquiry Numbers
+                                        </button>
+
+                                        <button onClick={() => navigate('/stands')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
+                                            <MapPin size={14} /> Bus Stand List
+                                        </button>
+
+                                        {[
+                                            { t: "Official KSRTC Booking", l: "https://online.keralartc.com" },
+                                            { t: "Student Concession", l: "https://concessionksrtc.com/school-register" },
+                                            { t: "Sabarimala Bus Pass", l: "https://sabarimala.onlineksrtcswift.com/" },
+                                            { t: "Check Fare Rates (MVD)", l: "https://mvd.kerala.gov.in" },
+                                            { t: "Live Traffic Status", l: "https://google.com/maps" }
+                                        ].map((item, i) => (
+                                            <a key={i} href={item.l} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-teal-700 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0">
+                                                <ChevronRight size={12} className="text-gray-300" /> {item.t}
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                                <FareCalculator />
+                            </div>
+                            
+                            {/* Mobile Google Translate Widget */}
+                            <div className="lg:hidden mt-4 flex items-center justify-center bg-gray-100 p-2 rounded-lg">
+                                <div id="google_translate_element" className="scale-90 origin-center"></div>
+                            </div>
+                            
+                            <SeoContent onQuickSearch={handleQuickSearch} />
+                        </>
+                    )}
+
+                    {view === 'add-bus' && (
+                        <AddBusForm onCancel={() => navigate('/')} onAdd={addNewBus} showToast={showToast} />
+                    )}
+
+                    {view === 'depot' && (
+                        <DepotEnquiry />
+                    )}
+
+                    {view === 'bus-stands' && (
+                        <BusStandList onBack={() => navigate('/')} />
+                    )}
+
+                    {/* FOOTER PAGES */}
+                    {['about', 'contact', 'privacy', 'terms', 'disclaimer', 'cookies'].includes(view) && (
+                        <FooterPage type={view} onBack={() => navigate('/')} />
+                    )}
+
+                    {/* RESULTS VIEW WITH PAGINATION (ALREADY UPDATED ABOVE) */}
+                    {view === 'results' && (
+                        <div className="animate-fade-in" ref={resultsRef}>
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
+                                        <Search size={16} className="text-teal-600"/> 
+                                        {searchFrom ? `Results: ${searchFrom}` : "All"} {searchTo && `to ${searchTo}`}
+                                    </h3>
+                                    <button onClick={() => navigate('/')} className="text-[10px] text-gray-400 hover:text-teal-600 underline mt-1">
+                                        Back to Search
+                                    </button>
+                                </div>
+                                
+                                <div className="flex bg-gray-100 p-1 rounded-md">
+                                    <button onClick={() => setResultFilter('all')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'all' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>All</button>
+                                    <button onClick={() => setResultFilter('upcoming')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'upcoming' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>Upcoming</button>
+                                </div>
+                            </div>
+
+                            {loading ? (
+                                <div className="space-y-3">
+                                    {[1,2,3,4,5].map(i => <SkeletonCard key={i}/>)}
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="space-y-3">
+                                        {paginatedBuses.length > 0 ? paginatedBuses.map((bus, idx) => {
+                                            let displayTime = bus.time;
+                                            let isIntermediate = false;
+                                            if (searchFrom && bus.detailedStops) {
+                                                const stop = bus.detailedStops.find(s => s.name.toLowerCase() === searchFrom.toLowerCase());
+                                                if (stop && stop.time !== 'TBD') {
+                                                    displayTime = stop.time;
+                                                    isIntermediate = true;
+                                                }
+                                            }
+                                            const estimatedFare = calculateFare(bus.distance, bus.type);
+                                            const isKSRTC = bus.type === 'KSRTC' || bus.type === 'Swift';
+
+                                            return (
+                                            <div 
+                                                key={bus.id} 
+                                                onClick={() => handleBusClick(bus)} 
+                                                className="relative bg-white rounded-xl sm:rounded-2xl border border-teal-100 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-teal-200 transition-all cursor-pointer overflow-hidden group"
+                                            >
+                                                {/* Watermark */}
+                                                <div className="absolute top-1/2 -translate-y-1/2 right-[-10px] sm:right-[-20px] font-black text-6xl sm:text-8xl text-gray-50 italic pointer-events-none select-none z-0 tracking-tighter opacity-50 sm:opacity-80">
+                                                    {isKSRTC ? 'KSRTC' : 'PRIVATE'}
+                                                </div>
+                                                
+                                                {/* TOP SECTION: Name & Route */}
+                                                <div className="relative z-10 flex justify-between items-start mb-3">
+                                                    <div className="min-w-0 pr-2">
+                                                        <h4 className="font-bold text-lg sm:text-xl text-teal-900 leading-tight truncate">{bus.name}</h4>
+                                                        <p className="text-xs sm:text-sm font-bold text-gray-500 mt-0.5 truncate">{bus.route}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        {bus.votes > 0 && (
+                                                            <div className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-green-100 shadow-sm">
+                                                                <Star size={10} className="fill-green-700" /> {bus.votes}
+                                                            </div>
+                                                        )}
+                                                        <ChevronRight size={20} className="text-gray-300 sm:w-6 sm:h-6" />
+                                                    </div>
+                                                </div>
+
+                                                {/* SEPARATOR */}
+                                                <div className="relative z-10 border-t border-dashed border-gray-200 my-3"></div>
+
+                                                {/* BOTTOM SECTION: Time & Tags */}
+                                                <div className="relative z-10 flex items-center gap-3 sm:gap-5">
+                                                    {/* Fixed Time Box */}
+                                                    <div className="bg-gray-50 rounded-xl p-2 sm:p-3 w-20 sm:w-24 shrink-0 text-center border border-gray-100 flex flex-col justify-center">
+                                                        <span className="block text-2xl sm:text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
+                                                        <span className="block text-[10px] sm:text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
+                                                    </div>
+
+                                                    {/* Tags Container */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                                                                isKSRTC ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
+                                                            }`}>
+                                                                {bus.type}
+                                                            </span>
+
+                                                            {isIntermediate && (
+                                                                <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                                    Via {searchFrom}
+                                                                </span>
+                                                            )}
+
+                                                            <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                                Crowd: {bus.crowdLevel || "Low"}
+                                                            </span>
+
+                                                            <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
+                                                                Est. Fare: {estimatedFare ? `₹${estimatedFare}` : 'Check'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            );}) : (
+                                            <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                                                No buses found matching your search.
+                                                {buses.length === 0 && (
+                                                    <div className="mt-3">
+                                                        <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
+                                                            + Load Sample Data
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* PAGINATION CONTROLS */}
@@ -837,268 +1165,43 @@ export default function App() {
                         </div>
                     )}
 
-                    {/* TOOLKIT & FARE GRID */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                            <h4 className="font-bold text-gray-800 mb-2 text-xs uppercase tracking-wide">Quick Links</h4>
-                            <div className="space-y-1">
-                                <button onClick={() => setShowBoardInput(!showBoardInput)} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                    <Monitor size={14} /> Digital Bus Stand Display
-                                </button>
-                                
-                                {/* Board Input Dropdown */}
-                                {showBoardInput && (
-                                    <div className="p-3 bg-gray-50 rounded-lg animate-fade-in border border-gray-200 mb-2 relative">
-                                        <input 
-                                            className="w-full p-2 border border-gray-200 rounded text-xs mb-2 outline-none focus:border-teal-500" 
-                                            placeholder="Enter Stop Name (e.g. Pandikkad)"
-                                            value={boardStop}
-                                            onChange={(e) => {
-                                                setBoardStop(e.target.value);
-                                                updateSuggestions(e.target.value, 'board'); 
-                                            }}
-                                        />
-                                        {/* Suggestions Specific to Board */}
-                                        {suggestionsBoard.length > 0 && (
-                                            <div className="bg-white border border-gray-200 rounded text-xs mb-2 max-h-32 overflow-y-auto absolute z-20 w-full left-0 top-12 shadow-lg">
-                                                {suggestionsBoard.map((s, i) => (
-                                                    <div key={i} onClick={() => { setBoardStop(s); setSuggestionsBoard([]); }} className="p-2 hover:bg-teal-50 cursor-pointer border-b border-gray-50">{s}</div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <button onClick={openBoard} className="w-full bg-teal-600 text-white text-xs font-bold py-2 rounded flex items-center justify-center gap-1 hover:bg-teal-700">
-                                            <Maximize2 size={12}/> Open Board View
-                                        </button>
-                                    </div>
-                                )}
-
-                                <button onClick={() => navigate('/add-bus')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                    <PlusCircle size={14} /> Add Missing Bus
-                                </button>
-
-                                <button onClick={() => navigate('/depot')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                    <Phone size={14} /> Depot Enquiry Numbers
-                                </button>
-
-                                <button onClick={() => navigate('/stands')} className="w-full flex items-center gap-2 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0 text-left">
-                                    <MapPin size={14} /> Bus Stand List
-                                </button>
-
-                                {[
-                                    { t: "Official KSRTC Booking", l: "https://online.keralartc.com" },
-                                    { t: "Student Concession", l: "https://concessionksrtc.com/school-register" },
-                                    { t: "Sabarimala Bus Pass", l: "https://sabarimala.onlineksrtcswift.com/" },
-                                    { t: "Check Fare Rates (MVD)", l: "https://mvd.kerala.gov.in" },
-                                    { t: "Live Traffic Status", l: "https://google.com/maps" }
-                                ].map((item, i) => (
-                                    <a key={i} href={item.l} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-teal-700 hover:pl-2 rounded transition-all border-b border-gray-50 last:border-0">
-                                        <ChevronRight size={12} className="text-gray-300" /> {item.t}
-                                    </a>
-                                ))}
-                            </div>
-                        </div>
-                        <FareCalculator />
-                    </div>
-                    <SeoContent onQuickSearch={handleQuickSearch} />
-                </>
-            )}
-
-            {view === 'add-bus' && (
-                <AddBusForm onCancel={() => navigate('/')} onAdd={addNewBus} showToast={showToast} />
-            )}
-
-            {view === 'depot' && (
-                <DepotEnquiry />
-            )}
-
-            {view === 'bus-stands' && (
-                <BusStandList onBack={() => navigate('/')} />
-            )}
-
-            {/* FOOTER PAGES */}
-            {['about', 'contact', 'privacy', 'terms', 'disclaimer', 'cookies'].includes(view) && (
-                <FooterPage type={view} onBack={() => navigate('/')} />
-            )}
-
-            {/* RESULTS VIEW WITH PAGINATION (ALREADY UPDATED ABOVE) */}
-            {view === 'results' && (
-                <div className="animate-fade-in" ref={resultsRef}>
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
-                                <Search size={16} className="text-teal-600"/> 
-                                {searchFrom ? `Results: ${searchFrom}` : "All"} {searchTo && `to ${searchTo}`}
-                            </h3>
-                            <button onClick={() => navigate('/')} className="text-[10px] text-gray-400 hover:text-teal-600 underline mt-1">
-                                Back to Search
-                            </button>
-                        </div>
-                        
-                        <div className="flex bg-gray-100 p-1 rounded-md">
-                            <button onClick={() => setResultFilter('all')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'all' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>All</button>
-                            <button onClick={() => setResultFilter('upcoming')} className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${resultFilter === 'upcoming' ? 'bg-white shadow text-teal-800' : 'text-gray-400'}`}>Upcoming</button>
-                        </div>
-                    </div>
-
-                    {loading ? (
-                        <div className="space-y-3">
-                            {[1,2,3,4,5].map(i => <SkeletonCard key={i}/>)}
-                        </div>
-                    ) : (
-                        <>
-                            <div className="space-y-3">
-                                {paginatedBuses.length > 0 ? paginatedBuses.map((bus, idx) => {
-                                    let displayTime = bus.time;
-                                    let isIntermediate = false;
-                                    if (searchFrom && bus.detailedStops) {
-                                        const stop = bus.detailedStops.find(s => s.name.toLowerCase() === searchFrom.toLowerCase());
-                                        if (stop && stop.time !== 'TBD') {
-                                            displayTime = stop.time;
-                                            isIntermediate = true;
-                                        }
+                    {/* DETAIL VIEW */}
+                    {view === 'detail' && selectedBus && (
+                        <div ref={resultsRef}>
+                            <BusPost 
+                                bus={selectedBus} 
+                                onBack={() => {
+                                    if (searchFrom) {
+                                        const toParam = searchTo.trim() || '-';
+                                        navigate(`/search/${encodeURIComponent(searchFrom)}/${encodeURIComponent(toParam)}/${filterType}`);
+                                    } else {
+                                        navigate('/');
                                     }
-                                    const estimatedFare = calculateFare(bus.distance, bus.type);
-                                    const isKSRTC = bus.type === 'KSRTC' || bus.type === 'Swift';
-
-                                    return (
-                                    <div 
-                                        key={bus.id} 
-                                        onClick={() => handleBusClick(bus)} 
-                                        className="relative bg-white rounded-xl sm:rounded-2xl border border-teal-100 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-teal-200 transition-all cursor-pointer overflow-hidden group"
-                                    >
-                                        {/* Watermark */}
-                                        <div className="absolute top-1/2 -translate-y-1/2 right-[-10px] sm:right-[-20px] font-black text-6xl sm:text-8xl text-gray-50 italic pointer-events-none select-none z-0 tracking-tighter opacity-50 sm:opacity-80">
-                                            {isKSRTC ? 'KSRTC' : 'PRIVATE'}
-                                        </div>
-                                        
-                                        {/* TOP SECTION: Name & Route */}
-                                        <div className="relative z-10 flex justify-between items-start mb-3">
-                                            <div className="min-w-0 pr-2">
-                                                <h4 className="font-bold text-lg sm:text-xl text-teal-900 leading-tight truncate">{bus.name}</h4>
-                                                <p className="text-xs sm:text-sm font-bold text-gray-500 mt-0.5 truncate">{bus.route}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                {bus.votes > 0 && (
-                                                    <div className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-green-100 shadow-sm">
-                                                        <Star size={10} className="fill-green-700" /> {bus.votes}
-                                                    </div>
-                                                )}
-                                                <ChevronRight size={20} className="text-gray-300 sm:w-6 sm:h-6" />
-                                            </div>
-                                        </div>
-
-                                        {/* SEPARATOR */}
-                                        <div className="relative z-10 border-t border-dashed border-gray-200 my-3"></div>
-
-                                        {/* BOTTOM SECTION: Time & Tags */}
-                                        <div className="relative z-10 flex items-center gap-3 sm:gap-5">
-                                            {/* Fixed Time Box */}
-                                            <div className="bg-gray-50 rounded-xl p-2 sm:p-3 w-20 sm:w-24 shrink-0 text-center border border-gray-100 flex flex-col justify-center">
-                                                <span className="block text-2xl sm:text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
-                                                <span className="block text-[10px] sm:text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
-                                            </div>
-
-                                            {/* Tags Container */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                                                        isKSRTC ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                    }`}>
-                                                        {bus.type}
-                                                    </span>
-
-                                                    {isIntermediate && (
-                                                        <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                            Via {searchFrom}
-                                                        </span>
-                                                    )}
-
-                                                    <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                        Crowd: {bus.crowdLevel || "Low"}
-                                                    </span>
-
-                                                    <span className="bg-gray-50 text-gray-500 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-medium">
-                                                        Est. Fare: {estimatedFare ? `₹${estimatedFare}` : 'Check'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    );}) : (
-                                    <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
-                                        No buses found matching your search.
-                                        {buses.length === 0 && (
-                                            <div className="mt-3">
-                                                <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
-                                                    + Load Sample Data
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* PAGINATION CONTROLS */}
-                            {filteredBuses.length > itemsPerPage && (
-                                <div className="flex justify-center items-center gap-4 mt-6">
-                                    <button 
-                                        onClick={() => handlePageChange(currentPage - 1)} 
-                                        disabled={currentPage === 1}
-                                        className={`p-2 rounded-lg border transition-all ${currentPage === 1 ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
-                                    >
-                                        <ChevronLeft size={20} />
-                                    </button>
-                                    <span className="text-xs font-bold text-gray-600">
-                                        Page {currentPage} of {totalPages}
-                                    </span>
-                                    <button 
-                                        onClick={() => handlePageChange(currentPage + 1)} 
-                                        disabled={currentPage === totalPages}
-                                        className={`p-2 rounded-lg border transition-all ${currentPage === totalPages ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-teal-700 border-teal-200 hover:bg-teal-50'}`}
-                                    >
-                                        <ChevronRight size={20} />
-                                    </button>
-                                </div>
-                            )}
-                        </>
+                                }} 
+                                addComment={addComment} 
+                                updateBusDetails={updateBusDetails} 
+                                onVote={handleVote}
+                                reportLate={reportLate}
+                                updateCrowd={updateCrowd}
+                                toggleFavorite={toggleFavorite}
+                                isFavorite={favorites.some(f => f.id === selectedBus.id)}
+                                showToast={showToast}
+                            />
+                        </div>
                     )}
                 </div>
-            )}
 
-            {/* DETAIL VIEW */}
-            {view === 'detail' && selectedBus && (
-                <div ref={resultsRef}>
-                    <BusPost 
-                        bus={selectedBus} 
-                        onBack={() => {
-                            if (searchFrom) {
-                                const toParam = searchTo.trim() || '-';
-                                navigate(`/search/${encodeURIComponent(searchFrom)}/${encodeURIComponent(toParam)}/${filterType}`);
-                            } else {
-                                navigate('/');
-                            }
-                        }} 
-                        addComment={addComment} 
-                        updateBusDetails={updateBusDetails} 
-                        onVote={handleVote}
-                        reportLate={reportLate}
-                        updateCrowd={updateCrowd}
-                        toggleFavorite={toggleFavorite}
-                        isFavorite={favorites.some(f => f.id === selectedBus.id)}
-                        showToast={showToast}
-                    />
+                {/* --- RIGHT COLUMN --- */}
+                <div className="hidden lg:block lg:col-span-4">
+                    <div className="mb-4 flex justify-end">
+                       <div id="google_translate_element" className="bg-white px-2 py-1 rounded shadow-sm border border-gray-200"></div>
+                    </div>
+                    <Sidebar setView={(v) => navigate(`/${v}`)} onSeed={seedDatabase} favorites={favorites} onSelectFavorite={handleSelectFavorite} points={userPoints} />
                 </div>
-            )}
-        </div>
-
-        {/* --- RIGHT COLUMN --- */}
-        <div className="hidden lg:block lg:col-span-4">
-            <Sidebar setView={(v) => navigate(`/${v}`)} onSeed={seedDatabase} favorites={favorites} onSelectFavorite={handleSelectFavorite} points={userPoints} />
+            </div>
+            
+            {view !== 'board' && <Footer setView={(v) => navigate(`/${v}`)} onQuickSearch={handleQuickSearch} />}
         </div>
     </div>
-    
-    {view !== 'board' && <Footer setView={(v) => navigate(`/${v}`)} onQuickSearch={handleQuickSearch} />}
-</div>
-</div>
-);
+  );
 };

@@ -92,8 +92,8 @@ export const MobileMenu = ({ isOpen, closeMenu }) => {
         <div className="fixed inset-0 z-40 bg-white pt-20 px-6 md:hidden animate-fade-in">
             <div className="flex flex-col gap-3">
                 <button onClick={() => { navigate('/'); closeMenu(); }} className="text-left text-sm font-bold text-gray-800 py-3 border-b border-gray-100">Home</button>
-                <button onClick={() => { navigate('/ksrtc'); closeMenu(); }} className="text-left text-sm font-bold text-gray-800 py-3 border-b border-gray-100">KSRTC Timings</button>
-                <button onClick={() => { navigate('/private'); closeMenu(); }} className="text-left text-sm font-bold text-gray-800 py-3 border-b border-gray-100">Private Stand</button>
+                <button onClick={() => { navigate('/ksrtc'); closeMenu(); }} className="text-left text-sm font-bold text-gray-800 py-3 border-b border-gray-100">KSRTC Buses</button>
+                <button onClick={() => { navigate('/private'); closeMenu(); }} className="text-left text-sm font-bold text-gray-800 py-3 border-b border-gray-100">Private Buses</button>
                 <button onClick={() => { navigate('/stands'); closeMenu(); }} className="text-left text-sm font-bold text-gray-800 py-3 border-b border-gray-100 flex items-center gap-2"><MapPin size={16}/> Bus Stands</button>
                 <a href="https://blog.evidebus.com" className="text-left text-sm font-bold text-gray-800 py-3 border-b border-gray-100">Blog</a>
                 <button onClick={() => { navigate('/add-bus'); closeMenu(); }} className="bg-teal-600 text-white py-3 rounded-xl font-bold mt-2 flex justify-center items-center gap-2 text-sm shadow-md">
