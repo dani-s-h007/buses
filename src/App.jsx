@@ -29,6 +29,25 @@ try {
   console.warn("Firebase not connected. Please update firebaseConfig.");
 }
 
+// --- HELPER: DYNAMIC SEO TAGS (Added) ---
+const updateMetaTag = (name, content) => {
+    if (!content) return;
+    // Handle both 'name' (standard) and 'property' (Open Graph)
+    let element = document.querySelector(`meta[name="${name}"]`) || 
+                  document.querySelector(`meta[property="${name}"]`);
+    
+    if (!element) {
+        element = document.createElement('meta');
+        if (name.includes('og:') || name.includes('twitter:')) {
+            element.setAttribute('property', name);
+        } else {
+            element.setAttribute('name', name);
+        }
+        document.head.appendChild(element);
+    }
+    element.setAttribute('content', content);
+};
+
 // --- HELPER: GENERATE SEO SLUG ---
 const generateBusSlug = (bus) => {
     const clean = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '-') : '';
@@ -245,14 +264,36 @@ export default function App() {
           setView('home');
       }
 
-      // SEO Titles
+      // --- DYNAMIC SEO TITLES & META TAGS (UPDATED) ---
       let title = "evidebus.com - Find Private & KSRTC Bus Timings";
-      if (view === 'detail' && selectedBus) title = `${selectedBus.route} ${selectedBus.time} Bus Timing - evidebus.com`;
-      if (view === 'depot') title = "Kerala KSRTC Depot Contact Numbers - evidebus.com";
-      if (view === 'bus-stands') title = "Kerala Bus Stand List - evidebus.com";
-      if (view === 'board') title = `${boardStop} Live Bus Stand Status - evidebus.com`;
-      if (view === 'cookies') title = "Cookie Policy - evidebus.com";
+      let description = "Find real-time Kerala bus timings for KSRTC and Private buses. Check routes, fares, and live station boards.";
+
+      if (view === 'detail' && selectedBus) {
+          title = `${selectedBus.route} ${selectedBus.time} Bus Timing - evidebus.com`;
+          description = `Check detailed timing, stops, and fare for ${selectedBus.name} (${selectedBus.type}) on the ${selectedBus.route} route.`;
+      } else if (view === 'depot') {
+          title = "Kerala KSRTC Depot Contact Numbers - evidebus.com";
+          description = "Official contact numbers and enquiry details for all KSRTC depots across Kerala.";
+      } else if (view === 'bus-stands') {
+          title = "Kerala Bus Stand List - evidebus.com";
+          description = "Find locations and details of major bus stands across Kerala.";
+      } else if (view === 'board') {
+          title = `${boardStop} Live Bus Stand Status - evidebus.com`;
+          description = `Live departure board for ${boardStop} bus stand. See upcoming KSRTC and Private buses in real-time.`;
+      } else if (view === 'cookies') {
+          title = "Cookie Policy - evidebus.com";
+      } else if (view === 'results' && searchFrom) {
+          title = `Bus from ${searchFrom} to ${searchTo || 'Anywhere'} - evidebus.com`;
+          description = `Find bus timings from ${searchFrom} to ${searchTo}. Compare KSRTC and Private bus schedules and fares.`;
+      }
+
+      // Apply to DOM
       document.title = title;
+      updateMetaTag('description', description);
+      updateMetaTag('og:title', title);
+      updateMetaTag('og:description', description);
+      updateMetaTag('og:url', window.location.href);
+      updateMetaTag('og:type', 'website');
       
       const scriptId = "json-ld-schema";
       let script = document.getElementById(scriptId);
@@ -265,7 +306,7 @@ export default function App() {
       const schemaData = generateSchema(view === 'home' ? 'home' : 'bus', selectedBus);
       if (schemaData) script.text = JSON.stringify(schemaData);
 
-  }, [location, buses, loading, view, selectedBus, boardStop]);
+  }, [location, buses, loading, view, selectedBus, boardStop, searchFrom, searchTo]);
 
   // Firebase Listener
   useEffect(() => {
@@ -839,15 +880,26 @@ export default function App() {
                                                         </div>
                                                     </div>
                                                     );}) : (
-                                                    <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
-                                                        No buses found matching your search.
-                                                        {buses.length === 0 && (
-                                                            <div className="mt-3">
-                                                                <button onClick={seedDatabase} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 border border-blue-100">
-                                                                    + Load Sample Data
+                                                    
+                                                    // NO RESULTS & ADD BUS CTA
+                                                    <div className="flex flex-col items-center justify-center py-12 px-4 bg-white rounded-xl border border-dashed border-gray-300 text-center">
+                                                        <div className="bg-gray-50 p-4 rounded-full mb-4">
+                                                            <Bus size={32} className="text-gray-400" />
+                                                        </div>
+                                                        <h3 className="text-lg font-bold text-gray-800 mb-2">No buses found for this route</h3>
+                                                        <p className="text-sm text-gray-500 max-w-xs mx-auto mb-6">
+                                                            We couldn't find any buses running from <span className="font-bold">{searchFrom}</span> to <span className="font-bold">{searchTo || 'your destination'}</span>.
+                                                        </p>
+                                                        <div className="grid gap-3 w-full max-w-sm">
+                                                            <button onClick={() => navigate('/add-bus')} className="w-full bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                                                                <PlusCircle size={18} /> Add Bus For This Route
+                                                            </button>
+                                                            {buses.length === 0 && (
+                                                                <button onClick={seedDatabase} className="w-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 py-3 rounded-xl font-bold text-sm transition-all">
+                                                                    Load Sample Data
                                                                 </button>
-                                                            </div>
-                                                        )}
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -874,67 +926,63 @@ export default function App() {
                                                     </button>
                                                 </div>
                                             )}
+
+                                            {/* --- MOVED FEATURE BANNERS TO RESULTS FOOTER --- */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 pt-6 border-t border-gray-100">
+                                                {/* 1. Community Contribution Banner */}
+                                                <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
+                                                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                                    
+                                                    <div>
+                                                       <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                                                            <Star className="text-yellow-300 fill-yellow-300" size={18} />
+                                                            <span>Contribute Data</span>
+                                                        </h3>
+                                                        <p className="text-teal-100 text-xs sm:text-sm max-w-md leading-relaxed mb-4">
+                                                            Know a bus route or timing we missed? <span className="text-white font-bold">Your single contribution can help thousands of travelers</span> reach their destination on time.
+                                                        </p>
+                                                    </div>
+                                                    
+                                                    <button 
+                                                        onClick={() => navigate('/add-bus')}
+                                                        className="w-full bg-white/10 hover:bg-white text-white hover:text-teal-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <PlusCircle size={16} /> Add Missing Bus
+                                                    </button>
+                                                </div>
+
+                                                {/* 2. Digital Stand Display Banner */}
+                                                <div className="bg-gradient-to-r from-indigo-800 to-slate-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
+                                                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                                    
+                                                    <div>
+                                                        <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                                                            <Monitor className="text-blue-300" size={18} />
+                                                            <span>Live Bus Stand</span>
+                                                        </h3>
+                                                        <p className="text-indigo-100 text-xs leading-relaxed mb-4">
+                                                            Turn your shop TV or phone into a real-time departure board for any stop.
+                                                        </p>
+                                                    </div>
+                                                    
+                                                    <button 
+                                                        onClick={() => {
+                                                            setShowBoardInput(true);
+                                                            setTimeout(() => {
+                                                                quickLinksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                            }, 100);
+                                                        }}
+                                                        className="w-full bg-white/10 hover:bg-white text-white hover:text-indigo-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <Maximize2 size={16} /> Launch Display
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </>
                                     )}
                                 </div>
                             )}
                             
-                            {/* --- FEATURE PROMOTION BANNERS --- */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 mt-6">
-                                
-                                {/* 1. Community Contribution Banner */}
-                                <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
-                                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-                                    
-                                    <div>
-                                       <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                                            <Star className="text-yellow-300 fill-yellow-300" size={18} />
-                                            <span>Contribute Data</span>
-                                        </h3>
-                                        <p className="text-teal-100 text-xs sm:text-sm max-w-md leading-relaxed">
-
-                                            Know a bus route or timing we missed? <span className="text-white font-bold">Your single contribution can help thousands of travelers</span> reach their destination on time.
-
-                                        </p>
-                                        <br />
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={() => navigate('/add-bus')}
-                                        className="w-full bg-white/10 hover:bg-white text-white hover:text-teal-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <PlusCircle size={16} /> Add Missing Bus
-                                    </button>
-                                </div>
-
-                                {/* 2. Digital Stand Display Banner */}
-                                <div className="bg-gradient-to-r from-indigo-800 to-slate-900 rounded-xl p-5 shadow-md text-white relative overflow-hidden group flex flex-col justify-between">
-                                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-                                    
-                                    <div>
-                                        <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                                            <Monitor className="text-blue-300" size={18} />
-                                            <span>Live Bus Stand</span>
-                                        </h3>
-                                        <p className="text-indigo-100 text-xs leading-relaxed mb-4">
-                                            Turn your shop TV or phone into a real-time departure board for any stop.
-                                        </p>
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={() => {
-                                            setShowBoardInput(true);
-                                            setTimeout(() => {
-                                                quickLinksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                            }, 100);
-                                        }}
-                                        className="w-full bg-white/10 hover:bg-white text-white hover:text-indigo-900 border border-white/20 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Maximize2 size={16} /> Launch Display
-                                    </button>
-                                </div>
-                            </div>
-
                             {/* TOOLKIT & FARE GRID */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div ref={quickLinksRef} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
@@ -1097,6 +1145,7 @@ export default function App() {
                                                     {isKSRTC ? 'KSRTC' : 'PRIVATE'}
                                                 </div>
                                                 
+                                                {/* TOP SECTION: Name & Route */}
                                                 <div className="relative z-10 flex justify-between items-start mb-3">
                                                     <div className="min-w-0 pr-2">
                                                         <h4 className="font-bold text-lg sm:text-xl text-teal-900 leading-tight truncate">{bus.name}</h4>
@@ -1112,9 +1161,12 @@ export default function App() {
                                                     </div>
                                                 </div>
 
+                                                {/* SEPARATOR */}
                                                 <div className="relative z-10 border-t border-dashed border-gray-200 my-3"></div>
 
+                                                {/* BOTTOM SECTION: Time & Tags */}
                                                 <div className="relative z-10 flex items-center gap-3 sm:gap-5">
+                                                    {/* Fixed Time Box */}
                                                     <div className="bg-gray-50 rounded-xl p-2 sm:p-3 w-20 sm:w-24 shrink-0 text-center border border-gray-100 flex flex-col justify-center">
                                                         <span className="block text-2xl sm:text-3xl font-bold text-gray-900 leading-none">{displayTime.split(' ')[0]}</span>
                                                         <span className="block text-[10px] sm:text-xs font-bold text-gray-400 uppercase mt-1">{displayTime.split(' ')[1]}</span>
@@ -1142,8 +1194,6 @@ export default function App() {
                                                 </div>
                                             </div>
                                             );}) : (
-                                            
-                                            // NO RESULTS & ADD BUS CTA
                                             <div className="flex flex-col items-center justify-center py-12 px-4 bg-white rounded-xl border border-dashed border-gray-300 text-center">
                                                 <div className="bg-gray-50 p-4 rounded-full mb-4">
                                                     <Bus size={32} className="text-gray-400" />
@@ -1166,7 +1216,6 @@ export default function App() {
                                         )}
                                     </div>
 
-                                    {/* PAGINATION CONTROLS */}
                                     {filteredBuses.length > itemsPerPage && (
                                         <div className="flex justify-center items-center gap-4 mt-6">
                                             <button 
